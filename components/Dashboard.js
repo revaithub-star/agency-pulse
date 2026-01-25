@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-    Plus, 
+import {
+    Plus,
     Search,
     Download,
     LayoutGrid,
@@ -64,7 +64,7 @@ export default function Dashboard() {
             // The file logic for PUT/DELETE returns ALL projects.
             // The POST logic returns the NEW project.
             // Let's stick to simple state updates.
-            
+
             const newProject = await saveProject(data);
             if (newProject) {
                 // Update state directly with the new project to avoid read-after-write race conditions
@@ -114,11 +114,10 @@ export default function Dashboard() {
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-                                activeTab === item.id 
-                                ? 'bg-secondary text-primary' 
-                                : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary'
-                            }`}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${activeTab === item.id
+                                    ? 'bg-secondary text-primary'
+                                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-primary'
+                                }`}
                         >
                             <item.icon size={18} />
                             {item.label}
@@ -127,7 +126,7 @@ export default function Dashboard() {
                 </nav>
 
                 <div className="pt-6 border-t border-border">
-                   <div className="flex items-center gap-3 px-2">
+                    <div className="flex items-center gap-3 px-2">
                         <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-medium">
                             JD
                         </div>
@@ -136,7 +135,7 @@ export default function Dashboard() {
                             <p className="text-xs text-muted-foreground truncate">Admin</p>
                         </div>
                         <Settings size={16} className="text-muted-foreground cursor-pointer hover:text-primary" />
-                   </div>
+                    </div>
                 </div>
             </aside>
 
@@ -152,7 +151,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-4">
                         <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="Search..."
                                 value={searchTerm}
@@ -174,7 +173,7 @@ export default function Dashboard() {
                                 <div>
                                     <h2 className="text-3xl font-bold tracking-tight">Overview</h2>
                                     <p className="text-muted-foreground mt-1">
-                                        Track your agency's performance and active projects.
+                                        Track your agency&apos;s performance and active projects.
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -182,7 +181,7 @@ export default function Dashboard() {
                                         <Filter size={16} className="inline mr-2" />
                                         Filter
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
                                         className="h-9 px-4 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors flex items-center gap-2 cursor-pointer"
                                     >
@@ -193,13 +192,13 @@ export default function Dashboard() {
                             </div>
 
                             <StatsCards projects={projects} />
-                            
+
                             <div className="grid grid-cols-1 lg:grid-cols-7 gap-8">
                                 <div className="lg:col-span-4 rounded-xl border border-border bg-card p-6">
                                     <h3 className="text-base font-semibold mb-4">Revenue Growth</h3>
                                     <GrowthCharts projects={projects} type="line" />
                                 </div>
-                                 <div className="lg:col-span-3 rounded-xl border border-border bg-card p-6">
+                                <div className="lg:col-span-3 rounded-xl border border-border bg-card p-6">
                                     <h3 className="text-base font-semibold mb-4">Project Distribution</h3>
                                     <GrowthCharts projects={projects} type="doughnut" />
                                 </div>
@@ -208,15 +207,15 @@ export default function Dashboard() {
                             <div className="rounded-xl border border-border bg-card overflow-hidden">
                                 <div className="p-6 border-b border-border flex items-center justify-between">
                                     <h3 className="text-base font-semibold">Recent Projects</h3>
-                                    <button 
+                                    <button
                                         onClick={() => setActiveTab('projects')}
                                         className="text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer"
                                     >
                                         View All
                                     </button>
                                 </div>
-                                <ProjectTable 
-                                    projects={filteredProjects.slice(0, 5)} 
+                                <ProjectTable
+                                    projects={filteredProjects.slice(0, 5)}
                                     onDelete={handleDelete}
                                     onEdit={(p) => { setEditingProject(p); setIsModalOpen(true); }}
                                 />
@@ -233,7 +232,7 @@ export default function Dashboard() {
                                         Manage your entire project library and history.
                                     </p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
                                     className="h-9 px-4 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors flex items-center gap-2"
                                 >
@@ -242,7 +241,7 @@ export default function Dashboard() {
                                 </button>
                             </div>
                             <div className="rounded-xl border border-border bg-card overflow-hidden">
-                                <ProjectTable 
+                                <ProjectTable
                                     projects={filteredProjects}
                                     onDelete={handleDelete}
                                     onEdit={(p) => { setEditingProject(p); setIsModalOpen(true); }}
@@ -252,12 +251,12 @@ export default function Dashboard() {
                     )}
 
                     {activeTab === 'clients' && (
-                       <ClientList projects={projects} />
+                        <ClientList projects={projects} />
                     )}
                 </div>
             </main>
 
-            <ProjectModal 
+            <ProjectModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleAddProject}
