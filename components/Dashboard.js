@@ -31,10 +31,15 @@ export default function Dashboard() {
     const [editingProject, setEditingProject] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('dashboard'); // Default to dashboard
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         // Initial fetch
         const fetchProjects = async () => {
+            // Skip update if we are currently mid-mutation (add/edit/delete)
+            // to avoid read-after-write race conditions where polling overwrites local state
+            if (isProcessing) return;
+
             const data = await getProjects();
             // Only update if we successfully fetched data (not null).
             // This prevents wiping the dashboard on transient API/File errors.
@@ -48,39 +53,39 @@ export default function Dashboard() {
         const intervalId = setInterval(fetchProjects, 2000);
 
         return () => clearInterval(intervalId);
-    }, []);
+    }, [isProcessing]);
 
     const handleAddProject = async (data) => {
-        if (editingProject) {
-            const updatedProjects = await updateProject(editingProject.id, data);
-            if (updatedProjects) setProjects(updatedProjects);
-        } else {
-            // Re-fetch or manually append if the API returns just the new project.
-            // Our previous create logic returned the new object, but our storage wrappers 
-            // were slightly inconsistent. Let's fix.
-            // Actually our POST /api/projects returns the new project ONLY,
-            // so we should append it to state to avoid a full re-fetch or inconsistent state.
-            // WAIT - the file logic for GET returns ALL projects.
-            // The file logic for PUT/DELETE returns ALL projects.
-            // The POST logic returns the NEW project.
-            // Let's stick to simple state updates.
-
-            const newProject = await saveProject(data);
-            if (newProject) {
-                // Update state directly with the new project to avoid read-after-write race conditions
-                setProjects(prev => [...prev, newProject]);
+        setIsProcessing(true);
+        try {
+            if (editingProject) {
+                const updatedProjects = await updateProject(editingProject.id, data);
+                if (updatedProjects) setProjects(updatedProjects);
+            } else {
+                const newProject = await saveProject(data);
+                if (newProject) {
+                    setProjects(prev => [...prev, newProject]);
+                }
             }
+        } finally {
+            setIsModalOpen(false);
+            setEditingProject(null);
+            setIsProcessing(false);
         }
-        setIsModalOpen(false);
-        setEditingProject(null);
     };
 
     const handleDelete = async (id) => {
         if (confirm('Are you sure you want to delete this project?')) {
-            const updatedProjects = await deleteProject(id);
-            if (updatedProjects) setProjects(updatedProjects);
+            setIsProcessing(true);
+            try {
+                const updatedProjects = await deleteProject(id);
+                if (updatedProjects) setProjects(updatedProjects);
+            } finally {
+                setIsProcessing(false);
+            }
         }
     };
+
 
     const handleExport = () => {
         // ... (same logic)
