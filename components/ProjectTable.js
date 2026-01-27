@@ -47,22 +47,30 @@ export default function ProjectTable({ projects, onDelete, onEdit }) {
                             </td>
                             <td className="p-4 align-middle">
                                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${p.status === 'Completed' ? 'border-transparent bg-green-500/15 text-green-700' :
-                                        p.status === 'In Progress' ? 'border-transparent bg-blue-500/15 text-blue-700' :
-                                            p.status === 'Cancelled' ? 'border-transparent bg-red-500/15 text-red-700' :
-                                                'border-transparent bg-secondary text-secondary-foreground'
+                                    p.status === 'In Progress' ? 'border-transparent bg-blue-500/15 text-blue-700' :
+                                        p.status === 'Cancelled' ? 'border-transparent bg-red-500/15 text-red-700' :
+                                            'border-transparent bg-secondary text-secondary-foreground'
                                     }`}>
                                     {p.status}
                                 </span>
                             </td>
                             <td className="p-4 align-middle font-mono font-medium tracking-tight">
-                                {parseFloat(p.amount).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
+                                {(parseFloat(p.amount) || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
                             </td>
                             <td className="p-4 align-middle text-muted-foreground text-xs">
                                 <div className="flex items-center gap-1.5">
                                     <Calendar size={12} className="opacity-70" />
-                                    {format(new Date(p.date), 'MMM dd, yyyy')}
+                                    {(() => {
+                                        try {
+                                            const d = new Date(p.date);
+                                            return isNaN(d.getTime()) ? 'Invalid Date' : format(d, 'MMM dd, yyyy');
+                                        } catch {
+                                            return 'N/A';
+                                        }
+                                    })()}
                                 </div>
                             </td>
+
                             <td className="p-4 align-middle text-right">
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-2">
                                     <button

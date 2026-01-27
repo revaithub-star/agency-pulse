@@ -19,16 +19,21 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 export default function GrowthCharts({ projects, type }) {
     // 1. Calculate REAL Monthly Data
     const months = eachMonthOfInterval({ start: startOfYear(new Date()), end: new Date() });
-    
+
     if (type === 'line') {
         const monthlyRevenue = months.map(month => {
             return projects
                 .filter(p => {
-                    const pDate = new Date(p.date);
-                    return isWithinInterval(pDate, { start: month, end: endOfMonth(month) });
+                    try {
+                        const pDate = new Date(p.date);
+                        return !isNaN(pDate.getTime()) && isWithinInterval(pDate, { start: month, end: endOfMonth(month) });
+                    } catch {
+                        return false;
+                    }
                 })
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
         });
+
 
         // Calculate YTD Growth
         const currentMonthRev = monthlyRevenue[monthlyRevenue.length - 1] || 0;
@@ -67,10 +72,10 @@ export default function GrowthCharts({ projects, type }) {
                         options={{
                             responsive: true,
                             maintainAspectRatio: false,
-                            plugins: { 
-                                legend: { display: false }, 
-                                tooltip: { 
-                                    mode: 'index', 
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    mode: 'index',
                                     intersect: false,
                                     backgroundColor: '#09090b',
                                     titleColor: '#fafafa',
@@ -82,12 +87,12 @@ export default function GrowthCharts({ projects, type }) {
                                     callbacks: {
                                         label: (context) => ` ${context.raw.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}`
                                     }
-                                } 
+                                }
                             },
                             scales: {
                                 x: { grid: { display: false }, ticks: { color: '#737373', font: { size: 11 } } },
-                                y: { 
-                                    grid: { color: '#e5e5e5', borderDash: [4, 4] }, 
+                                y: {
+                                    grid: { color: '#e5e5e5', borderDash: [4, 4] },
                                     ticks: { display: false },
                                     beginAtZero: true
                                 }
@@ -122,16 +127,16 @@ export default function GrowthCharts({ projects, type }) {
                     }}
                     options={{
                         cutout: '75%',
-                        plugins: { 
-                            legend: { 
-                                position: 'bottom', 
-                                labels: { 
-                                    color: '#525252', 
-                                    usePointStyle: true, 
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: '#525252',
+                                    usePointStyle: true,
                                     boxWidth: 8,
                                     padding: 20,
                                     font: { size: 11 }
-                                } 
+                                }
                             },
                             tooltip: {
                                 backgroundColor: '#09090b',

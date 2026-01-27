@@ -7,20 +7,37 @@ export default function StatsCards({ projects }) {
     const lastMonthStart = startOfMonth(subMonths(now, 1));
 
     // Helper: Filter projects by month based on date property
-    const getProjectsInMonth = (date) => projects.filter(p => isSameMonth(new Date(p.date), date));
-    
+    const getProjectsInMonth = (date) => projects.filter(p => {
+        try {
+            const pDate = new Date(p.date);
+            return !isNaN(pDate.getTime()) && isSameMonth(pDate, date);
+        } catch {
+            return false;
+        }
+    });
+
+
     // 1. Revenue Calculations (INR)
     const currentMonthProjects = getProjectsInMonth(now);
     const lastMonthProjects = getProjectsInMonth(subMonths(now, 1));
     const totalRevenue = projects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-    
+
     const currentMonthRevenue = currentMonthProjects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
     const lastMonthRevenue = lastMonthProjects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
     const revenueGrowth = lastMonthRevenue === 0 ? 100 : ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
 
     // 2. Active Projects (Change since last week)
     const activeProjects = projects.filter(p => p.status === 'In Progress').length;
-    const newActiveLastWeek = projects.filter(p => p.status === 'In Progress' && isAfter(new Date(p.date), subWeeks(now, 1))).length;
+    const newActiveLastWeek = projects.filter(p => {
+        if (p.status !== 'In Progress') return false;
+        try {
+            const pDate = new Date(p.date);
+            return !isNaN(pDate.getTime()) && isAfter(pDate, subWeeks(now, 1));
+        } catch {
+            return false;
+        }
+    }).length;
+
 
     // 3. Average Deal (All time vs Monthly Trend)
     const avgDeal = projects.length ? totalRevenue / projects.length : 0;
@@ -31,7 +48,7 @@ export default function StatsCards({ projects }) {
     const finishedProjects = projects.filter(p => ['Completed', 'Cancelled'].includes(p.status));
     const completedProjects = projects.filter(p => p.status === 'Completed');
     const winRate = finishedProjects.length ? (completedProjects.length / finishedProjects.length) * 100 : 0;
-    
+
     // Win Rate Growth (Comparison to last month's win rate)
     const lastMonthFinished = lastMonthProjects.filter(p => ['Completed', 'Cancelled'].includes(p.status));
     const lastMonthCompleted = lastMonthProjects.filter(p => p.status === 'Completed');
@@ -84,10 +101,9 @@ export default function StatsCards({ projects }) {
                     <div className="text-2xl font-bold tracking-tight mt-2">
                         {card.value}
                     </div>
-                    <p className={`text-xs mt-1 ${
-                        card.trend === 'up' ? 'text-green-600' : 
+                    <p className={`text-xs mt-1 ${card.trend === 'up' ? 'text-green-600' :
                         card.trend === 'down' ? 'text-red-600' : 'text-muted-foreground'
-                    }`}>
+                        }`}>
                         {card.change}
                     </p>
                 </div>

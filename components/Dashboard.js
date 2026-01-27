@@ -40,11 +40,16 @@ export default function Dashboard() {
             // to avoid read-after-write race conditions where polling overwrites local state
             if (isProcessing) return;
 
-            const data = await getProjects();
-            // Only update if we successfully fetched data (not null).
-            // This prevents wiping the dashboard on transient API/File errors.
-            if (data !== null) {
-                setProjects(data);
+            try {
+                const data = await getProjects();
+                // Only update if we successfully fetched data (not null).
+                // This prevents wiping the dashboard on transient API/File errors.
+                if (data !== null) {
+                    setProjects(data);
+                }
+            } catch (err) {
+                console.error('Polling error:', err);
+                // Don't alert on polling errors to avoid spamming the user
             }
         };
         fetchProjects();
@@ -62,14 +67,17 @@ export default function Dashboard() {
                 const updatedProjects = await updateProject(editingProject.id, data);
                 if (updatedProjects) setProjects(updatedProjects);
             } else {
-                const newProject = await saveProject(data);
-                if (newProject) {
-                    setProjects(prev => [...prev, newProject]);
-                }
+                await saveProject(data);
+                // Instead of optimistic append, fetch fresh data to ensure server sync
+                const freshData = await getProjects();
+                if (freshData) setProjects(freshData);
             }
-        } finally {
             setIsModalOpen(false);
             setEditingProject(null);
+        } catch (err) {
+            console.error('Save error:', err);
+            alert(`Error saving project: ${err.message}`);
+        } finally {
             setIsProcessing(false);
         }
     };
@@ -80,24 +88,29 @@ export default function Dashboard() {
             try {
                 const updatedProjects = await deleteProject(id);
                 if (updatedProjects) setProjects(updatedProjects);
+            } catch (err) {
+                console.error('Delete error:', err);
+                alert(`Error deleting project: ${err.message}`);
             } finally {
                 setIsProcessing(false);
             }
         }
     };
 
-
-    const handleExport = () => {
-        // ... (same logic)
-    };
-    const filteredProjects = projects.filter(p => {
+    const filteredProjects = (projects || []).filter(p => {
+        if (!p) return false;
         const search = searchTerm.toLowerCase();
         const nameMatch = (p.projectName || '').toLowerCase().includes(search);
         const userMatch = (p.userName || '').toLowerCase().includes(search);
         const personMatch = (p.offlinePerson || '').toLowerCase().includes(search);
         const platformMatch = (p.onlinePlatform || '').toLowerCase().includes(search);
         return nameMatch || userMatch || personMatch || platformMatch;
-    }).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    }).sort((a, b) => {
+        const dateA = new Date(a.date || a.createdAt || 0);
+        const dateB = new Date(b.date || b.createdAt || 0);
+        return dateB - dateA;
+    });
+
 
     return (
         <div className="flex min-h-screen bg-background text-foreground font-sans selection:bg-white/20">

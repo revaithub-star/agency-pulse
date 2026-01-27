@@ -20,29 +20,40 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
         status: 'In Progress'
     });
 
+    const defaultFormData = {
+        projectName: '',
+        userName: '',
+        email: '',
+        password: '',
+        sourceType: 'online',
+        onlinePlatform: 'Freelance',
+        offlinePerson: '',
+        date: new Date().toISOString().split('T')[0],
+        amount: '',
+        category: 'Landing Page',
+        notes: '',
+        status: 'In Progress'
+    };
+
     useEffect(() => {
         if (!isOpen) return;
 
         if (editingProject) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setFormData(editingProject);
-        } else {
+            // Merge editing project with defaults to ensure all fields are defined
             setFormData({
-                projectName: '',
-                userName: '',
-                email: '',
-                password: '',
-                sourceType: 'online', // 'online' | 'offline'
-                onlinePlatform: 'Freelance',
-                offlinePerson: '',
-                date: new Date().toISOString().split('T')[0],
-                amount: '',
-                category: 'Landing Page',
-                notes: '',
-                status: 'In Progress'
+                ...defaultFormData,
+                ...editingProject,
+                // Ensure no null/undefined values leak into state
+                email: editingProject.email || '',
+                password: editingProject.password || '',
+                offlinePerson: editingProject.offlinePerson || '',
+                notes: editingProject.notes || '',
             });
+        } else {
+            setFormData(defaultFormData);
         }
     }, [editingProject, isOpen]);
+
 
     if (!isOpen) return null;
 
