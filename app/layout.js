@@ -13,15 +13,35 @@ const outfit = Outfit({
   display: "swap",
 });
 
-
 export const metadata = {
-  title: "Agency Pulse | Growth & Project Local Tracker",
-  description: "A premium local dashboard for agency owners to track projects, manage client details, and visualize monthly/yearly growth.",
+  title: "Agency Pulse | Agency Project & Growth Operations",
+  description: "Track agency projects, manage client credentials, monitor monthly growth and financial reports.",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('agency_pulse_theme');
+                  var theme = saved || 'dark';
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${inter.variable} ${outfit.variable} antialiased bg-background text-foreground`}
       >

@@ -13,27 +13,24 @@ import {
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { format, eachMonthOfInterval, startOfYear, endOfMonth, isWithinInterval } from 'date-fns';
+import { parseProjectDate } from '@/lib/projectDate';
+import { formatCurrency } from '@/lib/currency';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 export default function GrowthCharts({ projects, type }) {
-    // 1. Calculate REAL Monthly Data
+    const primaryCurrency = projects.find(p => p.currency)?.currency || 'USD';
     const months = eachMonthOfInterval({ start: startOfYear(new Date()), end: new Date() });
 
     if (type === 'line') {
         const monthlyRevenue = months.map(month => {
             return projects
                 .filter(p => {
-                    try {
-                        const pDate = new Date(p.date);
-                        return !isNaN(pDate.getTime()) && isWithinInterval(pDate, { start: month, end: endOfMonth(month) });
-                    } catch {
-                        return false;
-                    }
+                    const pDate = parseProjectDate(p.date);
+                    return pDate ? isWithinInterval(pDate, { start: month, end: endOfMonth(month) }) : false;
                 })
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
         });
-
 
         // Calculate YTD Growth
         const currentMonthRev = monthlyRevenue[monthlyRevenue.length - 1] || 0;
@@ -44,7 +41,7 @@ export default function GrowthCharts({ projects, type }) {
             <div className="h-[300px] w-full flex flex-col">
                 <div className="flex items-center gap-4 mb-4">
                     <div className="text-2xl font-bold tracking-tight">
-                        {currentMonthRev.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}
+                        {formatCurrency(currentMonthRev, primaryCurrency)}
                     </div>
                     <div className={`text-sm font-medium px-2 py-0.5 rounded-full ${growth >= 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
                         {growth > 0 ? '+' : ''}{growth.toFixed(1)}% vs last month
@@ -57,7 +54,7 @@ export default function GrowthCharts({ projects, type }) {
                             datasets: [{
                                 label: 'Revenue',
                                 data: monthlyRevenue,
-                                borderColor: '#262626', // Dark gray for professional look
+                                borderColor: '#262626',
                                 backgroundColor: 'rgba(38, 38, 38, 0.1)',
                                 borderWidth: 2,
                                 pointBackgroundColor: '#fff',
@@ -85,7 +82,7 @@ export default function GrowthCharts({ projects, type }) {
                                     padding: 10,
                                     displayColors: false,
                                     callbacks: {
-                                        label: (context) => ` ${context.raw.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}`
+                                        label: (context) => ` ${formatCurrency(context.raw, primaryCurrency)}`
                                     }
                                 }
                             },
@@ -107,7 +104,7 @@ export default function GrowthCharts({ projects, type }) {
 
     if (type === 'doughnut') {
         const categories = projects.reduce((acc, p) => {
-            acc[p.category] = (acc[p.category] || 0) + 1;
+            acc[p.category || 'Other'] = (acc[p.category || 'Other'] || 0) + 1;
             return acc;
         }, {});
 
@@ -121,7 +118,7 @@ export default function GrowthCharts({ projects, type }) {
                         labels: Object.keys(categories),
                         datasets: [{
                             data: Object.values(categories),
-                            backgroundColor: ['#262626', '#525252', '#a3a3a3', '#d4d4d4', '#e5e5e5'],
+                            backgroundColor: ['#262626', '#525252', '#a3a3a3', '#d4d4d4', '#e5e5e5', '#3b82f6', '#f97316', '#10b981'],
                             borderWidth: 0,
                         }]
                     }}
@@ -131,7 +128,7 @@ export default function GrowthCharts({ projects, type }) {
                             legend: {
                                 position: 'bottom',
                                 labels: {
-                                    color: '#525252',
+                                    color: '#737373',
                                     usePointStyle: true,
                                     boxWidth: 8,
                                     padding: 20,

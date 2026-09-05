@@ -1,43 +1,36 @@
 import { DollarSign, Activity, CreditCard, ArrowUpRight } from 'lucide-react';
 import { startOfMonth, subMonths, isSameMonth, subWeeks, isAfter } from 'date-fns';
+import { parseProjectDate } from '@/lib/projectDate';
+import { formatCurrency } from '@/lib/currency';
 
 export default function StatsCards({ projects }) {
     const now = new Date();
-    const currentMonthStart = startOfMonth(now);
-    const lastMonthStart = startOfMonth(subMonths(now, 1));
+    const primaryCurrency = projects.find(p => p.currency)?.currency || 'USD';
 
     // Helper: Filter projects by month based on date property
     const getProjectsInMonth = (date) => projects.filter(p => {
-        try {
-            const pDate = new Date(p.date);
-            return !isNaN(pDate.getTime()) && isSameMonth(pDate, date);
-        } catch {
-            return false;
-        }
+        const pDate = parseProjectDate(p.date);
+        return pDate ? isSameMonth(pDate, date) : false;
     });
 
-
-    // 1. Revenue Calculations (INR)
+    // 1. Revenue Calculations
     const currentMonthProjects = getProjectsInMonth(now);
     const lastMonthProjects = getProjectsInMonth(subMonths(now, 1));
     const totalRevenue = projects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
 
     const currentMonthRevenue = currentMonthProjects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
     const lastMonthRevenue = lastMonthProjects.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-    const revenueGrowth = lastMonthRevenue === 0 ? 100 : ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+    const revenueGrowth = lastMonthRevenue === 0
+        ? (currentMonthRevenue > 0 ? 100 : 0)
+        : ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
 
     // 2. Active Projects (Change since last week)
     const activeProjects = projects.filter(p => p.status === 'In Progress').length;
     const newActiveLastWeek = projects.filter(p => {
         if (p.status !== 'In Progress') return false;
-        try {
-            const pDate = new Date(p.date);
-            return !isNaN(pDate.getTime()) && isAfter(pDate, subWeeks(now, 1));
-        } catch {
-            return false;
-        }
+        const pDate = parseProjectDate(p.date);
+        return pDate ? isAfter(pDate, subWeeks(now, 1)) : false;
     }).length;
-
 
     // 3. Average Deal (All time vs Monthly Trend)
     const avgDeal = projects.length ? totalRevenue / projects.length : 0;
@@ -55,12 +48,10 @@ export default function StatsCards({ projects }) {
     const lastMonthWinRate = lastMonthFinished.length ? (lastMonthCompleted.length / lastMonthFinished.length) * 100 : 0;
     const winRateGrowth = winRate - lastMonthWinRate;
 
-    const formatINR = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
-
     const cards = [
         {
             label: "Total Revenue",
-            value: formatINR(totalRevenue),
+            value: formatCurrency(totalRevenue, primaryCurrency),
             change: `${revenueGrowth > 0 ? '+' : ''}${revenueGrowth.toFixed(1)}% from last month`,
             icon: DollarSign,
             trend: revenueGrowth >= 0 ? 'up' : 'down'
@@ -74,7 +65,7 @@ export default function StatsCards({ projects }) {
         },
         {
             label: "Average Deal",
-            value: formatINR(avgDeal),
+            value: formatCurrency(avgDeal, primaryCurrency),
             change: `${avgDealGrowth > 0 ? '+' : ''}${avgDealGrowth.toFixed(1)}% vs last month`,
             icon: CreditCard,
             trend: avgDealGrowth >= 0 ? 'up' : 'down'
