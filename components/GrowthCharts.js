@@ -14,12 +14,12 @@ import {
 import { Line, Doughnut } from 'react-chartjs-2';
 import { format, eachMonthOfInterval, startOfYear, endOfMonth, isWithinInterval } from 'date-fns';
 import { parseProjectDate } from '@/lib/projectDate';
-import { formatCurrency } from '@/lib/currency';
+import { getGlobalCurrency, formatCurrency } from '@/lib/currency';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 export default function GrowthCharts({ projects, type }) {
-    const primaryCurrency = projects.find(p => p.currency)?.currency || 'USD';
+    const primaryCurrency = getGlobalCurrency();
     const months = eachMonthOfInterval({ start: startOfYear(new Date()), end: new Date() });
 
     if (type === 'line') {
@@ -103,8 +103,9 @@ export default function GrowthCharts({ projects, type }) {
     }
 
     if (type === 'doughnut') {
-        const categories = projects.reduce((acc, p) => {
-            acc[p.category || 'Other'] = (acc[p.category || 'Other'] || 0) + 1;
+        const categories = (projects || []).reduce((acc, p) => {
+            const cat = (p && p.category && String(p.category).trim()) ? String(p.category).trim() : 'Other';
+            acc[cat] = (acc[cat] || 0) + 1;
             return acc;
         }, {});
 

@@ -7,7 +7,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
     const displayName = authUser?.name || authUser?.userName || authUser?.email?.split('@')[0] || 'Admin';
 
     const [agencyName, setAgencyName] = useState('Agency Pulse');
-    const [defaultCurrency, setDefaultCurrency] = useState('USD');
+    const [defaultCurrency, setDefaultCurrency] = useState('INR');
     const [agencyLogo, setAgencyLogo] = useState(null);
     const [savedNotice, setSavedNotice] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
@@ -17,7 +17,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
 
     useEffect(() => {
         const name = localStorage.getItem('agency_pulse_name');
-        const curr = localStorage.getItem('agency_pulse_currency');
+        const curr = localStorage.getItem('agency_pulse_currency') || localStorage.getItem('agency_currency');
         const logo = localStorage.getItem('agency_pulse_logo');
         if (name) setAgencyName(name);
         if (curr) setDefaultCurrency(curr);
@@ -72,6 +72,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
         e.preventDefault();
         localStorage.setItem('agency_pulse_name', agencyName);
         localStorage.setItem('agency_pulse_currency', defaultCurrency);
+        localStorage.setItem('agency_currency', defaultCurrency);
         if (agencyLogo) {
             localStorage.setItem('agency_pulse_logo', agencyLogo);
         } else {
@@ -84,7 +85,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
             onUpdateBranding({ name: agencyName, logo: agencyLogo, currency: defaultCurrency });
         }
         window.dispatchEvent(new CustomEvent('agency_branding_updated', {
-            detail: { name: agencyName, logo: agencyLogo }
+            detail: { name: agencyName, logo: agencyLogo, currency: defaultCurrency }
         }));
     };
 
@@ -145,7 +146,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
 
             {/* Appearance / Theme Toggle */}
             <div className="rounded-xl border border-border bg-card p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-border pb-4">
+                <div className="flex flex-wrap gap-5 items-center justify-between">
                     <div>
                         <h3 className="font-semibold text-lg flex items-center gap-2">
                             {theme === 'dark' ? <Moon size={20} className="text-purple-400" /> : <Sun size={20} className="text-amber-500" />}
@@ -248,7 +249,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
                                         )}
                                     </div>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Uploaded image is processed and displayed with a fixed dimension of 40×40 px on top of sidebar.
+                                        Uploaded image is processed and displayed with a fixed dimension of 64×64 px on top of sidebar.
                                     </p>
                                 </div>
                             </div>
@@ -284,7 +285,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
                         <div className="flex items-center gap-3 pt-2">
                             <button
                                 type="submit"
-                                className="inline-flex h-10 items-center gap-2 rounded-md border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                className="app-button app-button-primary"
                             >
                                 <Check size={15} />
                                 Save Preferences
@@ -375,7 +376,7 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
                     <button
                         type="submit"
                         disabled={isSubmittingPassword}
-                        className="inline-flex h-10 items-center gap-2 rounded-md border border-primary bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="app-button app-button-primary"
                     >
                         <Key size={15} />
                         {isSubmittingPassword ? 'Updating...' : 'Update Password'}
@@ -386,20 +387,20 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
             {/* Danger Zone / Reset — Admin Only */}
             {authUser?.role === 'admin' && (
                 <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center flex-wrap gap-5 justify-between">
                         <div>
                             <h3 className="font-semibold text-lg text-red-500 flex items-center gap-2">
                                 <Trash2 size={20} />
                                 Danger Zone
                             </h3>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                                Purge all records from SQLite database to start completely fresh.
+                                Purge all records to start completely fresh.
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={handleResetAllData}
-                            className="inline-flex h-10 items-center gap-2 rounded-md border border-red-700 bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                            className="app-button app-button-danger"
                         >
                             <Trash2 size={15} />
                             Wipe All Workspace Data
@@ -409,12 +410,12 @@ export default function SettingsView({ theme, onToggleTheme, authUser, onUpdateB
             )}
 
             {/* System Info */}
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm flex items-center justify-between text-xs text-muted-foreground">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm flex flex-wrap gap-2 items-center justify-between text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                     <Info size={16} />
-                    <span>Agency Pulse Commercial SaaS Suite — v2.4.0</span>
+                    <span>Agency Pulse Commercial SaaS Suite — v1.1.0</span>
                 </div>
-                <span>SQLite Database Engine: Online</span>
+                <span>Made with love by Reva Web Studio</span>
             </div>
         </div>
     );

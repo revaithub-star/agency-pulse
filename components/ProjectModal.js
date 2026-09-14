@@ -1,87 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { getGlobalCurrency } from '@/lib/currency';
 
-const defaultFormData = {
-    projectName: '',
-    projectUrl: '',
-    sourceType: 'online',
-    onlinePlatform: 'Freelance',
-    onlinePlatformOther: '',
-    offlinePerson: '',
-    clientId: '',
-    date: new Date().toISOString().split('T')[0],
-    status: 'In Progress',
-    startDate: '',
-    endDate: '',
-    statusReason: '',
-    amount: '',
-    budget: '',
-    currency: 'USD',
-    category: '',
-    notes: '',
-    includeCredentials: false,
-    credentials: [{ serviceName: '', username: '', email: '', password: '', url: '' }],
-    includeHosting: false,
-    hostingDetails: {
-        server: { serverName: '', ip: '', username: '', password: '', notes: '' },
-        hosting: { provider: '', plan: '', domain: '', username: '', password: '', notes: '' },
-    },
-};
+function getDefaultFormData() {
+    return {
+        projectName: '',
+        projectUrl: '',
+        sourceType: 'online',
+        onlinePlatform: 'Freelance',
+        onlinePlatformOther: '',
+        offlinePerson: '',
+        clientId: '',
+        date: new Date().toISOString().split('T')[0],
+        status: 'In Progress',
+        startDate: '',
+        endDate: '',
+        statusReason: '',
+        amount: '',
+        budget: '',
+        currency: getGlobalCurrency(),
+        category: '',
+        notes: '',
+        includeCredentials: false,
+        credentials: [{ serviceName: '', username: '', email: '', password: '', url: '' }],
+        includeHosting: false,
+        hostingDetails: {
+            server: { serverName: '', ip: '', username: '', password: '', notes: '' },
+            hosting: { provider: '', plan: '', domain: '', username: '', password: '', notes: '' },
+        },
+    };
+}
 
-export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject, categories, clients }) {
-    const [formData, setFormData] = useState(defaultFormData);
+function getInitialFormData(editingProject) {
+    const defaultFormData = getDefaultFormData();
+    if (!editingProject) return defaultFormData;
+
+    const hasCreds = Array.isArray(editingProject.credentials) && editingProject.credentials.some(c => c.serviceName || c.username || c.email || c.password || c.url);
+    const hasHosting = editingProject.hostingDetails && (
+        Object.values(editingProject.hostingDetails.server || {}).some(v => v) ||
+        Object.values(editingProject.hostingDetails.hosting || {}).some(v => v)
+    );
+
+    const migrated = {
+        ...defaultFormData,
+        ...editingProject,
+        currency: getGlobalCurrency(),
+        includeCredentials: hasCreds,
+        includeHosting: hasHosting,
+        credentials: (hasCreds && Array.isArray(editingProject.credentials) && editingProject.credentials.length > 0)
+            ? editingProject.credentials
+            : [{ serviceName: '', username: '', email: '', password: '', url: '' }],
+        hostingDetails: {
+            server: { ...defaultFormData.hostingDetails.server, ...(editingProject.hostingDetails?.server || {}) },
+            hosting: { ...defaultFormData.hostingDetails.hosting, ...(editingProject.hostingDetails?.hosting || {}) },
+        },
+    };
+
+    if (!migrated.onlinePlatformOther && editingProject.onlinePlatform && !['Freelance', 'Fiverr', 'Upwork', 'LinkedIn', 'Other'].includes(editingProject.onlinePlatform)) {
+        migrated.onlinePlatformOther = editingProject.onlinePlatform;
+        migrated.onlinePlatform = 'Other';
+    }
+
+    if (!editingProject.credentials && (editingProject.userName || editingProject.email || editingProject.password)) {
+        migrated.credentials = [{
+            serviceName: '',
+            username: editingProject.userName || '',
+            email: editingProject.email || '',
+            password: editingProject.password || '',
+            url: '',
+        }];
+        migrated.includeCredentials = true;
+    }
+
+    return migrated;
+}
+
+function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, categories, clients }) {
+    const [formData, setFormData] = useState(() => getInitialFormData(editingProject));
     const [errors, setErrors] = useState({});
     const [hostingSectionOpen, setHostingSectionOpen] = useState({ server: true, hosting: true });
 
     useEffect(() => {
-        if (!isOpen) return;
-
-        if (editingProject) {
-            const hasCreds = Array.isArray(editingProject.credentials) && editingProject.credentials.some(c => c.serviceName || c.username || c.email || c.password || c.url);
-            const hasHosting = editingProject.hostingDetails && (
-                Object.values(editingProject.hostingDetails.server || {}).some(v => v) ||
-                Object.values(editingProject.hostingDetails.hosting || {}).some(v => v)
-            );
-
-            const migrated = {
-                ...defaultFormData,
-                ...editingProject,
-                includeCredentials: hasCreds,
-                includeHosting: hasHosting,
-                credentials: (hasCreds && Array.isArray(editingProject.credentials) && editingProject.credentials.length > 0)
-                    ? editingProject.credentials
-                    : [{ serviceName: '', username: '', email: '', password: '', url: '' }],
-                hostingDetails: {
-                    server: { ...defaultFormData.hostingDetails.server, ...(editingProject.hostingDetails?.server || {}) },
-                    hosting: { ...defaultFormData.hostingDetails.hosting, ...(editingProject.hostingDetails?.hosting || {}) },
-                },
-            };
-
-            if (!migrated.onlinePlatformOther && editingProject.onlinePlatform && !['Freelance', 'Fiverr', 'Upwork', 'LinkedIn', 'Other'].includes(editingProject.onlinePlatform)) {
-                migrated.onlinePlatformOther = editingProject.onlinePlatform;
-                migrated.onlinePlatform = 'Other';
+        const syncCurrency = () => {
+            if (!editingProject) {
+                setFormData((prev) => ({ ...prev, currency: getGlobalCurrency() }));
             }
+        };
 
-            if (!editingProject.credentials && (editingProject.userName || editingProject.email || editingProject.password)) {
-                migrated.credentials = [{
-                    serviceName: '',
-                    username: editingProject.userName || '',
-                    email: editingProject.email || '',
-                    password: editingProject.password || '',
-                    url: '',
-                }];
-                migrated.includeCredentials = true;
-            }
-
-            setFormData(migrated);
-        } else {
-            setFormData(defaultFormData);
-        }
-        setErrors({});
-    }, [editingProject, isOpen]);
+        window.addEventListener('agency_branding_updated', syncCurrency);
+        return () => window.removeEventListener('agency_branding_updated', syncCurrency);
+    }, [editingProject]);
 
     const addCredential = () => {
         setFormData({
@@ -145,8 +156,8 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
                     : 'A reason is required when a project is cancelled';
             }
         }
-        if (formData.sourceType === 'offline' && !formData.offlinePerson?.trim()) {
-            newErrors.offlinePerson = 'Referral person / name is required for offline projects';
+        if (formData.sourceType === 'offline' && !formData.clientId && !formData.offlinePerson?.trim()) {
+            newErrors.clientId = 'Please select a client or enter client / person name';
         }
         if (formData.sourceType === 'online' && formData.onlinePlatform === 'Other' && !formData.onlinePlatformOther?.trim()) {
             newErrors.onlinePlatformOther = 'Please specify the platform name';
@@ -169,6 +180,7 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
         if (formData.sourceType === 'online' && formData.onlinePlatform === 'Other' && formData.onlinePlatformOther?.trim()) {
             submitData.onlinePlatform = formData.onlinePlatformOther.trim();
         }
+        delete submitData.onlinePlatformOther;
         if (!submitData.includeCredentials) {
             submitData.credentials = [];
         }
@@ -366,42 +378,38 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="space-y-2 sm:col-span-2">
-                                            <label className="text-sm font-medium">
-                                                Referral Person / Name <span className="text-destructive">*</span>
-                                            </label>
-                                            <input
-                                                className={`flex h-10 w-full rounded-md border ${errors.offlinePerson ? 'border-destructive' : 'border-input'} bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-                                                placeholder="e.g. John Smith"
-                                                value={formData.offlinePerson}
-                                                onChange={e => setFormData({ ...formData, offlinePerson: e.target.value })}
-                                            />
-                                            {errors.offlinePerson && (
-                                                <p className="text-xs text-destructive">{errors.offlinePerson}</p>
-                                            )}
+                                        <div className="space-y-4 sm:col-span-2">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">
+                                                    Client <span className="text-destructive">*</span>
+                                                </label>
+                                                <select
+                                                    className={`flex h-10 w-full rounded-md border ${errors.clientId ? 'border-destructive' : 'border-input'} bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+                                                    value={formData.clientId || ''}
+                                                    onChange={e => setFormData({ ...formData, clientId: e.target.value })}
+                                                >
+                                                    <option value="">Select a client...</option>
+                                                    {clientOptions.map(client => (
+                                                        <option key={client.id} value={client.id}>
+                                                            {client.name}{client.company ? ` (${client.company})` : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {errors.clientId && <p className="text-xs text-destructive">{errors.clientId}</p>}
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium">Referral Person / Name (optional)</label>
+                                                <input
+                                                    className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                    placeholder="e.g. John Smith"
+                                                    value={formData.offlinePerson}
+                                                    onChange={e => setFormData({ ...formData, offlinePerson: e.target.value })}
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
-
-                            {/* Client Selection */}
-                            {clientOptions.length > 0 && (
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Client (optional)</label>
-                                    <select
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                        value={formData.clientId || ''}
-                                        onChange={e => setFormData({ ...formData, clientId: e.target.value })}
-                                    >
-                                        <option value="">Select a client...</option>
-                                        {clientOptions.map(client => (
-                                            <option key={client.id} value={client.id}>
-                                                {client.name}{client.company ? ` (${client.company})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
 
                             {/* Client Credentials Checkbox */}
                             <div className="space-y-3 rounded-lg border border-border p-4">
@@ -648,18 +656,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
                                         Project Amount <span className="text-destructive">*</span>
                                     </label>
                                     <div className="flex gap-2">
-                                        <select
-                                            className="flex h-10 w-24 shrink-0 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
-                                            value={formData.currency}
-                                            onChange={e => setFormData({ ...formData, currency: e.target.value })}
-                                        >
-                                            <option value="USD">USD ($)</option>
-                                            <option value="INR">INR (₹)</option>
-                                            <option value="EUR">EUR (€)</option>
-                                            <option value="GBP">GBP (£)</option>
-                                            <option value="CAD">CAD ($)</option>
-                                            <option value="AUD">AUD ($)</option>
-                                        </select>
+                                        <div className="flex h-10 w-24 shrink-0 items-center justify-center rounded-md border border-input bg-muted/40 px-2 py-2 text-sm font-mono text-foreground">
+                                            {formData.currency || getGlobalCurrency()}
+                                        </div>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -724,10 +723,10 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
                     </div>
 
                     <div className="p-4 sm:p-6 border-t border-border flex justify-end gap-3 bg-secondary/10 rounded-b-xl shrink-0">
-                        <button type="button" onClick={onClose} className="px-4 py-2 rounded-md border border-input bg-background hover:bg-secondary text-sm font-medium transition-colors">
+                        <button type="button" onClick={onClose} className="app-button app-button-secondary">
                             Cancel
                         </button>
-                        <button form="projectForm" type="submit" className="px-6 py-2 rounded-md bg-foreground text-background hover:opacity-90 text-sm font-medium transition-colors">
+                        <button form="projectForm" type="submit" className="app-button app-button-primary">
                             Save Record
                         </button>
                     </div>
@@ -735,4 +734,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, editingProject
             </div>
         </AnimatePresence>
     );
+}
+
+export default function ProjectModal(props) {
+    const editKey = props.editingProject?.id || props.editingProject?.projectName || 'new';
+    return <ProjectModalContent key={`${props.isOpen}-${editKey}`} {...props} />;
 }

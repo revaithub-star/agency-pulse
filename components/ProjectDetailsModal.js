@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Globe, User, Calendar, Key, Server, FileText, Paperclip, Upload, Download, Trash2, Copy, Check } from 'lucide-react';
+import { X, Globe, User, Calendar, Key, Server, FileText, Paperclip, Upload, Download, Trash2, Copy, Check, Eye, EyeOff, CalendarDays, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
 
@@ -11,11 +11,10 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
   const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [revealedPasswords, setRevealedPasswords] = useState({});
 
   useEffect(() => {
     if (!isOpen || !project) return;
-    setUploadError('');
-    // Fetch project attachments metadata
     fetch(`/api/attachments?projectId=${project.id}`)
       .then(res => res.ok ? res.json() : [])
       .then(data => setAttachments(Array.isArray(data) ? data : []))
@@ -31,47 +30,30 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploading(true);
-    setUploadError('');
+  const togglePasswordReveal = (key) => {
+    setRevealedPasswords(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return null;
     try {
-      const formData = new FormData();
-      formData.append('projectId', project.id);
-      formData.append('file', file);
-
-      const res = await fetch('/api/attachments', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to upload attachment');
-      }
-
-      const newAttachment = await res.json();
-      setAttachments(prev => [newAttachment, ...prev]);
-    } catch (err) {
-      setUploadError(err.message);
-    } finally {
-      setIsUploading(false);
-      e.target.value = '';
+      return format(new Date(dateStr), 'MMM dd, yyyy');
+    } catch {
+      return dateStr;
     }
   };
 
-  const handleDeleteAttachment = async (id) => {
-    try {
-      const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setAttachments(prev => prev.filter(att => att.id !== id));
-      }
-    } catch (err) {
-      console.error('Delete attachment error:', err);
-    }
-  };
+  // Determine source platform display
+  const sourcePlatform = project.sourceType === 'online'
+    ? (project.onlinePlatform || 'Online')
+    : (project.offlinePerson ? `Referral: ${project.offlinePerson}` : 'Offline / Direct');
+
+  // Hosting details
+  const hostingServer = project.hostingDetails?.server || {};
+  const hostingAccount = project.hostingDetails?.hosting || {};
+  const hasServerDetails = hostingServer.serverName || hostingServer.ip || hostingServer.username;
+  const hasHostingDetails = hostingAccount.provider || hostingAccount.domain || hostingAccount.username;
+  const hasAnyHosting = hasServerDetails || hasHostingDetails;
 
   return (
     <AnimatePresence>
@@ -87,12 +69,11 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
             <div>
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-bold tracking-tight">{project.projectName}</h2>
-                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                  project.status === 'Completed' ? 'border-transparent bg-green-500/15 text-green-600' :
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${project.status === 'Completed' ? 'border-transparent bg-green-500/15 text-green-600' :
                   project.status === 'In Progress' ? 'border-transparent bg-blue-500/15 text-blue-600' :
-                  project.status === 'Cancelled' ? 'border-transparent bg-red-500/15 text-red-600' :
-                  'border-transparent bg-secondary text-secondary-foreground'
-                }`}>
+                    project.status === 'Cancelled' ? 'border-transparent bg-red-500/15 text-red-600' :
+                      'border-transparent bg-secondary text-secondary-foreground'
+                  }`}>
                   {project.status}
                 </span>
               </div>
@@ -115,7 +96,7 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
           {/* Body */}
           <div className="p-6 overflow-y-auto space-y-6">
             {/* Metadata Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg bg-secondary/20 border border-border">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-secondary/20 border border-border">
               <div>
                 <span className="text-xs text-muted-foreground uppercase font-medium">Amount</span>
                 <p className="text-lg font-mono font-bold text-foreground mt-0.5">
@@ -129,21 +110,33 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
                 </p>
               </div>
               <div>
-                <span className="text-xs text-muted-foreground uppercase font-medium">Source</span>
+                <span className="text-xs text-muted-foreground uppercase font-medium">Source Platform</span>
                 <p className="text-sm font-medium text-foreground mt-1 truncate">
-                  {project.sourceType === 'online' ? project.onlinePlatform : `Ref: ${project.offlinePerson}`}
+                  {sourcePlatform}
+                </p>
+              </div>
+            </div>
+
+            {/* Project Timeline */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-secondary/10 border border-border">
+              <div>
+                <span className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1"><CalendarDays size={11} /> Record Date</span>
+                <p className="text-sm font-medium text-foreground mt-1">
+                  {formatDate(project.date) || 'N/A'}
                 </p>
               </div>
               <div>
-                <span className="text-xs text-muted-foreground uppercase font-medium">Date</span>
+                <span className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1"><CalendarDays size={11} /> Start Date</span>
                 <p className="text-sm font-medium text-foreground mt-1">
-                  {(() => {
-                    try {
-                      return format(new Date(project.date), 'MMM dd, yyyy');
-                    } catch {
-                      return project.date || 'N/A';
-                    }
-                  })()}
+                  {formatDate(project.startDate) || <span className="text-muted-foreground italic text-xs">Not set</span>}
+                </p>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1"><CalendarDays size={11} />
+                  {project.status === 'In Progress' ? 'Expected End Date' : 'End Date'}
+                </span>
+                <p className="text-sm font-medium text-foreground mt-1">
+                  {formatDate(project.endDate) || <span className="text-muted-foreground italic text-xs">Not set</span>}
                 </p>
               </div>
             </div>
@@ -160,20 +153,21 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
                   {project.credentials.map((cred, idx) => (
                     <div key={idx} className="p-4 rounded-lg border border-border bg-card/50 space-y-2 text-sm">
                       <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground">
-                        <span>Credential #{idx + 1}</span>
+                        <span>{cred.serviceName ? `🔑 ${cred.serviceName}` : `Credential #${idx + 1}`}</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {cred.username && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Username:</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {cred.url && (
+                          <div className="">
+                            <span className="text-xs text-muted-foreground">URL / Details:</span>
                             <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
-                              <span className="truncate">{cred.username}</span>
-                              <button onClick={() => copyToClipboard(cred.username, `cred-u-${idx}`)} className="text-muted-foreground hover:text-foreground">
-                                {copiedField === `cred-u-${idx}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              <span className="truncate">{cred.url}</span>
+                              <button onClick={() => copyToClipboard(cred.url, `cred-url-${idx}`)} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === `cred-url-${idx}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                               </button>
                             </div>
                           </div>
                         )}
+
                         {cred.email && (
                           <div>
                             <span className="text-xs text-muted-foreground">Email:</span>
@@ -185,19 +179,42 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
                             </div>
                           </div>
                         )}
-                        {cred.password && (
+
+                        {cred.username && (
                           <div>
+                            <span className="text-xs text-muted-foreground">Username:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span className="truncate">{cred.username}</span>
+                              <button onClick={() => copyToClipboard(cred.username, `cred-u-${idx}`)} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === `cred-u-${idx}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {cred.password && (
+                          <div className="">
                             <span className="text-xs text-muted-foreground">Password:</span>
                             <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
-                              <span className="truncate">{cred.password}</span>
-                              {cred.password !== '[REDACTED]' && (
-                                <button onClick={() => copyToClipboard(cred.password, `cred-p-${idx}`)} className="text-muted-foreground hover:text-foreground">
+                              <span className="truncate select-none">
+                                {revealedPasswords[`cred-p-${idx}`] ? cred.password : '••••••••'}
+                              </span>
+                              <button
+                                onClick={() => togglePasswordReveal(`cred-p-${idx}`)}
+                                className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                                title={revealedPasswords[`cred-p-${idx}`] ? 'Hide password' : 'Show password'}
+                              >
+                                {revealedPasswords[`cred-p-${idx}`] ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                              {cred.password !== '[REDACTED]' && revealedPasswords[`cred-p-${idx}`] && (
+                                <button onClick={() => copyToClipboard(cred.password, `cred-p-${idx}`)} className="text-muted-foreground hover:text-foreground shrink-0">
                                   {copiedField === `cred-p-${idx}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                                 </button>
                               )}
                             </div>
                           </div>
                         )}
+                        
                       </div>
                     </div>
                   ))}
@@ -208,41 +225,132 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
             {/* Hosting Details */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                <Server size={16} /> Hosting Server Details
+                <Server size={16} /> Hosting / Server Details
               </h3>
-              {(!project.hostingDetails || (!project.hostingDetails.serverName && !project.hostingDetails.ip)) ? (
+              {!hasAnyHosting ? (
                 <p className="text-xs text-muted-foreground italic">No hosting details recorded.</p>
               ) : (
-                <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3 text-sm">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Server/Provider:</span>
-                      <p className="font-medium text-xs mt-0.5">{project.hostingDetails.serverName || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">IP Address:</span>
-                      <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
-                        <span>{project.hostingDetails.ip || 'N/A'}</span>
-                        {project.hostingDetails.ip && (
-                          <button onClick={() => copyToClipboard(project.hostingDetails.ip, 'host-ip')} className="text-muted-foreground hover:text-foreground">
-                            {copiedField === 'host-ip' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                          </button>
+                <div className="space-y-3">
+                  {/* Server Details */}
+                  {hasServerDetails && (
+                    <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3 text-sm">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Server / VPS</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {hostingServer.serverName && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Server Provider:</span>
+                            <p className="font-medium text-xs mt-0.5">{hostingServer.serverName}</p>
+                          </div>
+                        )}
+                        {hostingServer.ip && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">IP Address:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span>{hostingServer.ip}</span>
+                              <button onClick={() => copyToClipboard(hostingServer.ip, 'host-ip')} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === 'host-ip' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {hostingServer.username && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Username:</span>
+                            <p className="font-mono text-xs mt-0.5">{hostingServer.username}</p>
+                          </div>
+                        )}
+                        {hostingServer.password && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Password:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span className="select-none">
+                                {revealedPasswords['server-pass'] ? hostingServer.password : '••••••••'}
+                              </span>
+                              <button onClick={() => togglePasswordReveal('server-pass')} className="text-muted-foreground hover:text-foreground p-0.5" title={revealedPasswords['server-pass'] ? 'Hide' : 'Show'}>
+                                {revealedPasswords['server-pass'] ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                              {revealedPasswords['server-pass'] && (
+                                <button onClick={() => copyToClipboard(hostingServer.password, 'server-pass-copy')} className="text-muted-foreground hover:text-foreground">
+                                  {copiedField === 'server-pass-copy' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
+                      {hostingServer.notes && (
+                        <div className="pt-2 border-t border-border/50 text-xs">
+                          <span className="text-muted-foreground">Notes:</span>
+                          <p className="mt-0.5 whitespace-pre-wrap">{hostingServer.notes}</p>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Username:</span>
-                      <p className="font-mono text-xs mt-0.5">{project.hostingDetails.username || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Password:</span>
-                      <p className="font-mono text-xs mt-0.5">{project.hostingDetails.password || 'N/A'}</p>
-                    </div>
-                  </div>
-                  {project.hostingDetails.notes && (
-                    <div className="pt-2 border-t border-border/50 text-xs">
-                      <span className="text-muted-foreground">Server Notes:</span>
-                      <p className="mt-0.5 whitespace-pre-wrap">{project.hostingDetails.notes}</p>
+                  )}
+
+                  {/* Hosting Account Details */}
+                  {hasHostingDetails && (
+                    <div className="p-4 rounded-lg border border-border bg-card/50 space-y-3 text-sm">
+                      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Hosting Account</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {hostingAccount.provider && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Hosting Provider:</span>
+                            <p className="font-medium text-xs mt-0.5">{hostingAccount.provider}</p>
+                          </div>
+                        )}
+                        {hostingAccount.plan && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Plan / Package:</span>
+                            <p className="font-mono text-xs mt-0.5">{hostingAccount.plan}</p>
+                          </div>
+                        )}
+                        {hostingAccount.domain && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Domain Name:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span className="truncate">{hostingAccount.domain}</span>
+                              <button onClick={() => copyToClipboard(hostingAccount.domain, 'host-domain')} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === 'host-domain' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {hostingAccount.username && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Username:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span>{hostingAccount.username}</span>
+                              <button onClick={() => copyToClipboard(hostingAccount.username, 'host-uname')} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === 'host-uname' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {hostingAccount.password && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Password:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span className="select-none">
+                                {revealedPasswords['hosting-pass'] ? hostingAccount.password : '••••••••'}
+                              </span>
+                              <button onClick={() => togglePasswordReveal('hosting-pass')} className="text-muted-foreground hover:text-foreground p-0.5" title={revealedPasswords['hosting-pass'] ? 'Hide' : 'Show'}>
+                                {revealedPasswords['hosting-pass'] ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                              {revealedPasswords['hosting-pass'] && (
+                                <button onClick={() => copyToClipboard(hostingAccount.password, 'hosting-pass-copy')} className="text-muted-foreground hover:text-foreground">
+                                  {copiedField === 'hosting-pass-copy' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {hostingAccount.notes && (
+                        <div className="pt-2 border-t border-border/50 text-xs">
+                          <span className="text-muted-foreground">Notes:</span>
+                          <p className="mt-0.5 whitespace-pre-wrap">{hostingAccount.notes}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -260,70 +368,17 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
                 </div>
               </div>
             )}
-
-            {/* Attachments */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                  <Paperclip size={16} /> Attachments
-                </h3>
-                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary hover:bg-secondary/80 text-xs font-medium transition-colors">
-                  <Upload size={14} />
-                  {isUploading ? 'Uploading...' : 'Upload File'}
-                  <input type="file" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
-                </label>
-              </div>
-
-              {uploadError && (
-                <p className="text-xs text-red-500">{uploadError}</p>
-              )}
-
-              {attachments.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">No files attached to this project.</p>
-              ) : (
-                <div className="space-y-2">
-                  {attachments.map((att) => (
-                    <div key={att.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/40 text-xs">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <Paperclip size={14} className="text-muted-foreground shrink-0" />
-                        <span className="font-medium truncate">{att.original_name || att.name}</span>
-                        <span className="text-muted-foreground shrink-0">
-                          ({(att.size_bytes / 1024).toFixed(1)} KB)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`/api/attachments/${att.id}`}
-                          download
-                          className="p-1.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Download attachment"
-                        >
-                          <Download size={14} />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteAttachment(att.id)}
-                          className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
-                          title="Delete attachment"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Footer */}
           <div className="p-6 border-t border-border flex justify-between items-center bg-secondary/10 rounded-b-xl">
             <button
               onClick={() => { onClose(); onEdit(project); }}
-              className="px-4 py-2 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors"
+              className="app-button app-button-primary"
             >
               Edit Project Details
             </button>
-            <button onClick={onClose} className="px-4 py-2 rounded-md border border-input bg-background hover:bg-secondary text-sm font-medium transition-colors">
+            <button onClick={onClose} className="app-button app-button-secondary">
               Close
             </button>
           </div>

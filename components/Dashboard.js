@@ -20,8 +20,10 @@ import {
     FileText,
     UserPlus,
     ChevronDown,
-    Folder
+    Folder,
+    Pencil
 } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { getProjects, saveProject, deleteProject, updateProject } from '@/lib/storage';
 import ProjectModal from './ProjectModal';
 import StatsCards from './StatsCards';
@@ -36,7 +38,10 @@ import UserManagement from './UserManagement';
 import SettingsView from './SettingsView';
 import { canAccessTab, can } from '@/lib/permissions';
 
-export default function Dashboard() {
+export default function Dashboard({ initialTab = 'dashboard' }) {
+    const router = useRouter();
+    const pathname = usePathname();
+
     const [projects, setProjects] = useState([]);
     const [categories, setCategories] = useState([]);
     const [clients, setClients] = useState([]);
@@ -47,16 +52,25 @@ export default function Dashboard() {
     const [editingProject, setEditingProject] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [theme, setTheme] = useState('dark');
+    const [theme, setTheme] = useState('light');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [agencyName, setAgencyName] = useState('Agency Pulse');
     const [agencyLogo, setAgencyLogo] = useState(null);
     const [categoryModalOpen, setCategoryModalOpen] = useState(false);
 
     useEffect(() => {
-        const savedTheme = localStorage.getItem('agency_pulse_theme') || 'dark';
+        if (!pathname) return;
+        const segments = pathname.split('/').filter(Boolean);
+        const currentTab = segments[0] || initialTab;
+        if (['dashboard', 'projects', 'clients', 'financials', 'reports', 'users', 'settings'].includes(currentTab)) {
+            setActiveTab(currentTab);
+        }
+    }, [pathname, initialTab]);
+
+    useEffect(() => {
+        const savedTheme = localStorage.getItem('agency_pulse_theme') || 'light';
         setTheme(savedTheme);
         if (savedTheme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -74,6 +88,12 @@ export default function Dashboard() {
         const handleBrandingUpdate = (e) => {
             if (e.detail?.name !== undefined) setAgencyName(e.detail.name || 'Agency Pulse');
             if (e.detail?.logo !== undefined) setAgencyLogo(e.detail.logo);
+            if (e.detail?.currency !== undefined) {
+                setProjects((prevProjects) => prevProjects.map((project) => ({
+                    ...project,
+                    currency: e.detail.currency,
+                })));
+            }
         };
 
         window.addEventListener('agency_branding_updated', handleBrandingUpdate);
@@ -160,8 +180,6 @@ export default function Dashboard() {
         loadProjects();
         loadCategories();
         loadClients();
-        const interval = setInterval(loadProjects, 5000);
-        return () => clearInterval(interval);
     }, [authUser]);
 
     // Client-side permission enforcement for tab access
@@ -182,7 +200,7 @@ export default function Dashboard() {
             <div className="flex h-screen w-full items-center justify-center bg-background">
                 <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading agency system state...
+                    Loading agency...
                 </div>
             </div>
         );
@@ -278,6 +296,10 @@ export default function Dashboard() {
         if (tabId === 'users' && authUser?.role !== 'admin') return;
         if (!canAccessTab(authUser, tabId)) return;
         setActiveTab(tabId);
+        const targetPath = tabId === 'dashboard' ? '/dashboard' : `/${tabId}`;
+        if (pathname !== targetPath) {
+            router.push(targetPath);
+        }
     };
 
     return (
@@ -285,7 +307,7 @@ export default function Dashboard() {
             {/* Desktop Sidebar */}
             <aside className="w-64 border-r border-border bg-card flex flex-col hidden md:flex shrink-0 min-h-0">
                 <div className="p-6 shrink-0">
-                    <div className="flex items-center gap-3 mb-8 px-0.5">
+                    <div className="flex items-center gap-3 mb-0 px-0.5">
                         <div className="w-16 h-16 rounded-xl bg-secondary/80 border border-border/60 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1">
                             {agencyLogo ? (
                                 <img
@@ -391,7 +413,7 @@ export default function Dashboard() {
                             <div className="p-6 space-y-6 shrink-0">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className="w-9 h-9 rounded-xl bg-secondary/80 border border-border/60 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1">
+                                        <div className="w-9 h-10 rounded-xl bg-secondary/80 border border-border/60 flex items-center justify-center overflow-hidden shrink-0 shadow-sm p-1">
                                             {agencyLogo ? (
                                                 <img
                                                     src={agencyLogo}
@@ -514,7 +536,7 @@ export default function Dashboard() {
                 <div className="p-4 md:p-8 max-w-7xl w-full mx-auto space-y-8 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                     {activeTab === 'dashboard' && canAccessTab(authUser, 'dashboard') && (
                         <>
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex flex-col sm:flex-col sm:items-left justify-between gap-4">
                                 <div>
                                     <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Executive Dashboard</h1>
                                     <p className="text-muted-foreground mt-1 text-sm">
@@ -523,14 +545,16 @@ export default function Dashboard() {
                                 </div>
 
                                 {canWriteProjects && (
-                                    <button
-                                        onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
-                                        className="h-9 px-3 md:px-4 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors flex items-center gap-2 shadow-sm shrink-0 self-start sm:self-auto"
-                                    >
-                                        <Plus size={16} />
-                                        <span className="hidden sm:inline">New Project</span>
-                                        <span className="sm:hidden">New</span>
-                                    </button>
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end">
+                                        <button
+                                            onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
+                                            className="app-button app-button-primary"
+                                        >
+                                            <Plus size={16} />
+                                            <span className="hidden sm:inline">New Project</span>
+                                            <span className="sm:hidden">New Project</span>
+                                        </button>
+                                    </div>
                                 )}
                             </div>
 
@@ -577,14 +601,16 @@ export default function Dashboard() {
 
                     {activeTab === 'projects' && canAccessTab(authUser, 'projects') && (
                         <div className="space-y-6">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex flex-col sm:flex-col sm:items-left justify-between gap-4">
+
                                 <div className="min-w-0">
                                     <h2 className="text-2xl md:text-3xl font-bold tracking-tight">All Projects</h2>
                                     <p className="text-muted-foreground mt-1 text-sm">
                                         Manage client projects, server credentials, and build deliverables.
                                     </p>
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+
+                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end">
                                     <div className="relative flex-1 sm:flex-initial sm:w-64">
                                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                         <input
@@ -592,13 +618,13 @@ export default function Dashboard() {
                                             placeholder="Search projects..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="w-full h-9 pl-9 pr-3 rounded-md border border-input bg-transparent text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            className="w-full h-10 pl-9 pr-3 rounded-md border border-input bg-transparent text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                         />
                                     </div>
                                     <select
                                         value={statusFilter}
                                         onChange={(e) => setStatusFilter(e.target.value)}
-                                        className="h-9 px-3 rounded-md border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        className="h-10 px-3 rounded-md border border-input bg-background text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     >
                                         <option value="All">All Statuses</option>
                                         <option value="In Progress">In Progress</option>
@@ -610,7 +636,7 @@ export default function Dashboard() {
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => setCategoryModalOpen(true)}
-                                                className="h-9 px-3 rounded-md border border-input bg-background hover:bg-secondary text-sm font-medium transition-colors flex items-center gap-2 shrink-0"
+                                                className="h-10 px-3 rounded-md border border-input bg-background hover:bg-secondary text-sm font-medium transition-colors flex items-center gap-2 shrink-0"
                                                 title="Manage Categories"
                                             >
                                                 <Folder size={16} />
@@ -619,7 +645,7 @@ export default function Dashboard() {
                                             </button>
                                             <button
                                                 onClick={() => { setEditingProject(null); setIsModalOpen(true); }}
-                                                className="h-9 px-4 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors flex items-center gap-2 shrink-0"
+                                                className="app-button app-button-primary"
                                             >
                                                 <Plus size={16} />
                                                 <span className="hidden sm:inline">New Project</span>
@@ -855,9 +881,9 @@ function CategoryManager({ isOpen, onClose, categories, canWrite }) {
                                                     <button
                                                         onClick={() => { setEditingId(cat.id); setEditName(cat.name); }}
                                                         className="p-1.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-                                                        title="Edit"
+                                                        title="Update category"
                                                     >
-                                                        <Plus size={12} className="-rotate-45" />
+                                                        <Pencil size={13} />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(cat.id)}

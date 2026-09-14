@@ -63,7 +63,7 @@ export default function LoginForm({ onLogin }) {
                         <input id="password" type="password" minLength={8} required autoComplete={isSetup ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </div>
                     {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-                    <button type="submit" disabled={isSubmitting} className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-white text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60">
+                    <button type="submit" disabled={isSubmitting} className="app-button app-button-primary w-full">
                         {isSubmitting ? (isSetup ? 'Creating account...' : 'Signing in...') : (isSetup ? 'Create admin account' : 'Sign in')}
                         {!isSubmitting && <ArrowRight size={16} />}
                     </button>

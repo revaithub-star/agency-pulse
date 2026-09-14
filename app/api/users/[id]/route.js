@@ -12,6 +12,7 @@ function hashPassword(password) {
 function serializeUser(row) {
     return {
         id: row.id,
+        name: row.name || '',
         email: row.email,
         role: row.role,
         permissions: JSON.parse(row.permissions_json || '[]'),
@@ -25,7 +26,7 @@ export async function GET(request, { params }) {
     const auth = await requirePermission('users.manage');
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const { id } = await params;
-    const row = getDatabaseConnection().prepare('SELECT id, email, role, permissions_json, is_active, created_at, updated_at FROM users WHERE id = ?').get(id);
+    const row = getDatabaseConnection().prepare('SELECT id, name, email, role, permissions_json, is_active, created_at, updated_at FROM users WHERE id = ?').get(id);
     if (!row) return NextResponse.json({ error: 'User not found' }, { status: 404 });
     return NextResponse.json(serializeUser(row));
 }
@@ -40,6 +41,7 @@ export async function PUT(request, { params }) {
     const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
+    const name = String(body.name !== undefined ? body.name : (existing.name || '')).trim();
     const email = String(body.email || existing.email || '').trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) {
         return NextResponse.json({ error: 'Use a valid email address' }, { status: 400 });
@@ -50,11 +52,11 @@ export async function PUT(request, { params }) {
     const isActive = typeof body.isActive === 'boolean' ? (body.isActive ? 1 : 0) : existing.is_active;
 
     const now = new Date().toISOString();
-    const fields = ['email = ?', 'role = ?', 'permissions_json = ?', 'is_active = ?', 'updated_at = ?'];
-    const paramsArr = [email, role, JSON.stringify(permissions), isActive, now];
+    const fields = ['name = ?', 'email = ?', 'role = ?', 'permissions_json = ?', 'is_active = ?', 'updated_at = ?'];
+    const paramsArr = [name, email, role, JSON.stringify(permissions), isActive, now];
 
     if (body.password && String(body.password).length >= 8) {
-        fields.push(', password_hash = ?');
+        fields.push('password_hash = ?');
         paramsArr.push(hashPassword(String(body.password)));
     } else if (body.password) {
         return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
@@ -70,7 +72,7 @@ export async function PUT(request, { params }) {
         throw error;
     }
 
-    const updated = db.prepare('SELECT id, email, role, permissions_json, is_active, created_at, updated_at FROM users WHERE id = ?').get(id);
+    const updated = db.prepare('SELECT id, name, email, role, permissions_json, is_active, created_at, updated_at FROM users WHERE id = ?').get(id);
     return NextResponse.json(serializeUser(updated));
 }
 

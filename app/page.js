@@ -8,7 +8,7 @@ export const metadata = {
 export default function Home() {
   return (
     <main className="min-h-screen">
-      <Dashboard />
+      <Dashboard initialTab="dashboard" />
     </main>
   );
 }

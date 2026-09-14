@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserPlus, Shield, Check, X, Lock, Mail, UserCheck, UserX, Edit2, Trash2, AlertTriangle, Users } from 'lucide-react';
+import { UserPlus, Shield, Check, X, Lock, Mail, UserCheck, UserX, Edit2, Trash2, AlertTriangle, Users, User } from 'lucide-react';
 import { can } from '@/lib/permissions';
 
 const availablePermissions = [
@@ -12,10 +12,11 @@ const availablePermissions = [
   { id: 'financials.read', label: 'View Financials' },
   { id: 'financials.write', label: 'Manage Payments/Expenses' },
   { id: 'reports.read', label: 'View & Export Reports' },
-  { id: 'users.manage', label: 'Manage Users' },
+  // { id: 'users.manage', label: 'Manage Users' },
 ];
 
 const defaultAddForm = {
+  name: '',
   email: '',
   password: '',
   role: 'staff',
@@ -80,6 +81,7 @@ export default function UserManagement({ authUser }) {
       const perms = Array.isArray(data.permissions) ? data.permissions : [];
       setEditingUser(data);
       setForm({
+        name: data.name || '',
         email: data.email || '',
         password: '',
         role: data.role || 'staff',
@@ -101,6 +103,7 @@ export default function UserManagement({ authUser }) {
         url = `/api/users/${editingUser.id}`;
         method = 'PUT';
         const payload = {
+          name: form.name,
           email: form.email,
           role: form.role,
           permissions: form.permissions,
@@ -150,9 +153,20 @@ export default function UserManagement({ authUser }) {
   const isAddMode = !editingUser;
   const allPermsSelected = form.permissions.length === availablePermissions.length;
 
+  const getPermissionBadges = (permissions) => {
+    if (!Array.isArray(permissions)) return [];
+
+    const hasAllPermissions = permissions.includes('*') || permissions.length === availablePermissions.length;
+    const visiblePermissions = hasAllPermissions ? availablePermissions.map((perm) => perm.id) : permissions;
+
+    return visiblePermissions
+      .map((permissionId) => availablePermissions.find((perm) => perm.id === permissionId))
+      .filter(Boolean);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-col sm:items-left justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Users & Access Control</h2>
           <p className="text-muted-foreground mt-1">
@@ -160,12 +174,14 @@ export default function UserManagement({ authUser }) {
           </p>
         </div>
         {canManage && (
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors"
-          >
-            <UserPlus size={16} /> Add User
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end">
+            <button
+              onClick={openAdd}
+              className="app-button app-button-primary"
+            >
+              <UserPlus size={16} /> Add User
+            </button>
+          </div>
         )}
       </div>
 
@@ -188,7 +204,12 @@ export default function UserManagement({ authUser }) {
               {users.length === 0 ? (
                 <tr>
                   <td colSpan={canManage ? 6 : 5} className="p-8 text-center text-muted-foreground text-sm">
-                    {loading ? 'Loading users…' : 'No registered users found.'}
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        Loading users…
+                      </span>
+                    ) : 'No registered users found.'}
                   </td>
                 </tr>
               ) : (
@@ -199,42 +220,59 @@ export default function UserManagement({ authUser }) {
                     <tr key={user.id || user.email} className="hover:bg-muted/20">
                       <td className="p-4 font-medium flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0">
-                          {(user.email || '??').substring(0, 2).toUpperCase()}
+                          {(user.name || user.email || '??').substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="truncate">{user.email}</span>
+                          {user.name && <span className="font-semibold text-foreground truncate">{user.name}</span>}
+                          <span className={`truncate ${user.name ? 'text-xs text-muted-foreground' : 'text-foreground font-medium'}`}>{user.email}</span>
                           {isSelf && <span className="text-[10px] text-primary font-medium">(You)</span>}
                         </div>
                       </td>
                       <td className="p-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.role === 'admin' ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
-                        }`}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+                          }`}>
                           <Shield size={12} />
                           {user.role}
                         </span>
                       </td>
                       <td className="p-4">
-                        <div className="flex flex-wrap gap-1 max-w-md">
-                          {Array.isArray(user.permissions) && user.permissions.includes('*') ? (
-                            <span className="px-2 py-0.5 rounded bg-secondary text-[11px] font-mono text-muted-foreground">
-                              All Permissions (*)
-                            </span>
-                          ) : (
-                            Array.isArray(user.permissions) && user.permissions.length > 0 ? (
-                              user.permissions.slice(0, 4).map((p) => (
-                                <span key={p} className="px-2 py-0.5 rounded bg-secondary text-[10px] font-mono text-muted-foreground">
-                                  {p}
+                        <div className="flex flex-wrap gap-1 max-w-xs">
+                          {(() => {
+                            const permissionBadges = getPermissionBadges(user.permissions);
+                            if (permissionBadges.length === 0) {
+                              return <span className="text-[11px] text-muted-foreground/70 italic">No permissions</span>;
+                            }
+
+                            const hasAllPermissions = Array.isArray(user.permissions) && (
+                              user.permissions.includes('*') || user.permissions.length === availablePermissions.length
+                            );
+
+                            if (hasAllPermissions) {
+                              return (
+                                <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[10px] font-medium">
+                                  All permissions
                                 </span>
-                              )).concat(user.permissions.length > 4 ? [
-                                <span key="+more" className="px-2 py-0.5 rounded bg-secondary text-[10px] font-mono text-muted-foreground">
-                                  +{user.permissions.length - 4} more
-                                </span>
-                              ] : [])
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground/70 italic">No permissions</span>
-                            )
-                          )}
+                              );
+                            }
+
+                            return (
+                              <>
+                                {permissionBadges.slice(0, 3).map((perm) => (
+                                  <span
+                                    key={perm.id}
+                                    className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-medium text-muted-foreground border border-border"
+                                  >
+                                    {perm.label}
+                                  </span>
+                                ))}
+                                {permissionBadges.length > 3 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-medium text-muted-foreground border border-border">
+                                    +{permissionBadges.length - 3} more
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="p-4 whitespace-nowrap">
@@ -256,7 +294,7 @@ export default function UserManagement({ authUser }) {
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => openEdit(user)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-foreground text-muted-foreground transition-colors"
+                              className="app-button-icon"
                               title="Edit user"
                             >
                               <Edit2 size={14} />
@@ -265,7 +303,7 @@ export default function UserManagement({ authUser }) {
                               onClick={() => { setDeleteError(''); setDeleteConfirm(user); }}
                               disabled={isSelf}
                               title={isSelf ? "You can't delete your own account" : "Delete user"}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-input bg-background hover:bg-red-500/10 hover:text-red-600 text-muted-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              className="app-button-icon hover:bg-red-500/10 hover:text-red-600 disabled:opacity-40"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -302,6 +340,18 @@ export default function UserManagement({ authUser }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1 text-xs font-medium">
                 <label className="flex items-center gap-1">
+                  <User size={11} className="opacity-70" /> Full Name
+                </label>
+                <input
+                  type="text" placeholder="John Doe"
+                  className="w-full rounded-md border border-input bg-transparent pl-3 p-2 text-xs focus:ring-2 focus:ring-ring"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1 text-xs font-medium">
+                <label className="flex items-center gap-1">
                   <Mail size={11} className="opacity-70" /> Email Address
                 </label>
                 <input
@@ -333,18 +383,16 @@ export default function UserManagement({ authUser }) {
                     <button
                       type="button"
                       onClick={() => setForm(f => ({ ...f, isActive: true }))}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                        form.isActive !== false ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'text-muted-foreground hover:bg-secondary'
-                      }`}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.isActive !== false ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'text-muted-foreground hover:bg-secondary'
+                        }`}
                     >
                       <UserCheck size={12} /> Active
                     </button>
                     <button
                       type="button"
                       onClick={() => setForm(f => ({ ...f, isActive: false }))}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                        form.isActive === false ? 'bg-gray-500/10 text-gray-500 border border-gray-500/20' : 'text-muted-foreground hover:bg-secondary'
-                      }`}
+                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${form.isActive === false ? 'bg-gray-500/10 text-gray-500 border border-gray-500/20' : 'text-muted-foreground hover:bg-secondary'
+                        }`}
                     >
                       <UserX size={12} /> Inactive
                     </button>
@@ -397,13 +445,13 @@ export default function UserManagement({ authUser }) {
                 <button
                   type="button"
                   onClick={() => { setShowModal(false); setEditingUser(null); }}
-                  className="px-4 py-2 rounded-md border border-input text-xs font-medium hover:bg-secondary"
+                  className="app-button app-button-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium"
+                  className="app-button app-button-primary"
                 >
                   {isAddMode ? 'Create User' : 'Save Changes'}
                 </button>
@@ -423,7 +471,7 @@ export default function UserManagement({ authUser }) {
               <div>
                 <h3 className="text-base font-bold">Delete User</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Are you sure you want to permanently delete <span className="font-medium text-foreground break-all">"{deleteConfirm.email}"</span>?
+                  Are you sure you want to permanently delete <span className="font-medium text-foreground break-all">&quot;{deleteConfirm.email}&quot;</span>?
                   This action cannot be undone.
                 </p>
               </div>
@@ -438,13 +486,13 @@ export default function UserManagement({ authUser }) {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => { setDeleteConfirm(null); setDeleteError(''); }}
-                className="px-4 py-2 rounded-md border border-input text-xs font-medium hover:bg-secondary"
+                className="app-button app-button-secondary"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-600/90 text-xs font-medium"
+                className="app-button app-button-danger"
               >
                 Delete User
               </button>

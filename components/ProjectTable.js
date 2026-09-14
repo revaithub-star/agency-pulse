@@ -41,16 +41,17 @@ export default function ProjectTable({ projects, onDelete, onEdit }) {
                                             href={p.projectUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-xs text-primary hover:underline mt-0.5 truncate max-w-[200px]"
+                                            className="text-xs text-primary hover:underline mt-0.5 truncate max-w-[200px] flex items-center"
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            {p.projectUrl.replace(/^https?:\/\//, '')}
+                                            <Globe size={12} /> 
+                                            <span style={{ marginLeft: '0.125rem' }}>{p.projectUrl.replace(/^https?:\/\//, '')}</span>
                                         </a>
                                     )}
-                                    <span className="text-xs text-muted-foreground mt-0.5">
+                                    {/* <span className="text-xs text-muted-foreground mt-0.5 flex items-center">
                                         {p.userName || (p.credentials && p.credentials[0]?.username) || 'No credentials'}
                                         {p.credentials && p.credentials.length > 1 && ` (+${p.credentials.length - 1} more)`}
-                                    </span>
+                                    </span> */}
                                 </div>
                             </td>
                             <td className="p-4 align-middle">

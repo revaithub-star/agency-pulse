@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { DollarSign, TrendingDown, CreditCard, Plus, ArrowUpRight, ArrowDownRight, CheckCircle2, Clock } from 'lucide-react';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, getGlobalCurrency } from '@/lib/currency';
 import { can } from '@/lib/permissions';
 
 export default function FinancialsView({ projects, onRefresh, authUser }) {
@@ -13,23 +13,37 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
 
-  const [paymentForm, setPaymentForm] = useState({
+  const createPaymentForm = () => ({
     projectId: '',
     amount: '',
-    currency: 'USD',
+    currency: getGlobalCurrency(),
     date: new Date().toISOString().split('T')[0],
     status: 'received',
     notes: ''
   });
 
-  const [expenseForm, setExpenseForm] = useState({
+  const createExpenseForm = () => ({
     projectId: '',
-    category: 'Hosting & Server',
+    title: '',
     amount: '',
-    currency: 'USD',
+    currency: getGlobalCurrency(),
     date: new Date().toISOString().split('T')[0],
     notes: ''
   });
+
+  const [paymentForm, setPaymentForm] = useState(() => createPaymentForm());
+
+  const [expenseForm, setExpenseForm] = useState(() => createExpenseForm());
+
+  useEffect(() => {
+    const syncCurrency = () => {
+      setPaymentForm((prev) => ({ ...prev, currency: getGlobalCurrency() }));
+      setExpenseForm((prev) => ({ ...prev, currency: getGlobalCurrency() }));
+    };
+
+    window.addEventListener('agency_branding_updated', syncCurrency);
+    return () => window.removeEventListener('agency_branding_updated', syncCurrency);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -68,7 +82,7 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
         setPaymentForm({
           projectId: '',
           amount: '',
-          currency: 'USD',
+          currency: getGlobalCurrency(),
           date: new Date().toISOString().split('T')[0],
           status: 'received',
           notes: ''
@@ -83,21 +97,21 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
 
   const handleLogExpense = async (e) => {
     e.preventDefault();
-    if (!expenseForm.amount || !expenseForm.category) return;
+    if (!expenseForm.amount || !expenseForm.title?.trim()) return;
 
     try {
       const res = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(expenseForm)
+        body: JSON.stringify({ ...expenseForm, category: expenseForm.title })
       });
       if (res.ok) {
         setShowExpenseModal(false);
         setExpenseForm({
           projectId: '',
-          category: 'Hosting & Server',
+          title: '',
           amount: '',
-          currency: 'USD',
+          currency: getGlobalCurrency(),
           date: new Date().toISOString().split('T')[0],
           notes: ''
         });
@@ -109,7 +123,7 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
     }
   };
 
-  const primaryCurrency = projects[0]?.currency || 'USD';
+  const primaryCurrency = projects[0]?.currency || getGlobalCurrency();
   const totalAgreed = projects.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
   const totalReceived = payments
     .filter(p => p.status === 'received')
@@ -118,31 +132,50 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
   const outstanding = Math.max(totalAgreed - totalReceived, 0);
   const netProfit = totalReceived - totalExpense;
 
+  // For Record Payment modal: compute per-project paid totals
+  const projectPaidMap = payments
+    .filter(p => p.status === 'received')
+    .reduce((acc, p) => {
+      const projId = p.project_id || p.projectId;
+      acc[projId] = (acc[projId] || 0) + ((p.amount_minor || p.amountMinor || 0) / 100);
+      return acc;
+    }, {});
+
+  // Projects that are NOT fully paid (outstanding > 0)
+  const pendingProjects = projects.filter(p => {
+    const agreed = parseFloat(p.amount) || 0;
+    const paid = projectPaidMap[p.id] || 0;
+    return paid < agreed;
+  });
+
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-col sm:items-left justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Financials</h2>
           <p className="text-muted-foreground mt-1">
             Track payments, manage expenses, and monitor agency profitability.
           </p>
         </div>
+
         {canWrite && (
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowExpenseModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-input bg-background hover:bg-secondary text-sm font-medium transition-colors"
-          >
-            <TrendingDown size={16} className="text-red-500" /> Log Expense
-          </button>
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-white text-black hover:bg-white/90 text-sm font-medium transition-colors"
-          >
-            <Plus size={16} /> Record Payment
-          </button>
-        </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:justify-end">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowExpenseModal(true)}
+                className="app-button app-button-secondary"
+              >
+                <TrendingDown size={16} className="text-red-500" /> Log Expense
+              </button>
+              <button
+                onClick={() => setShowPaymentModal(true)}
+                className="app-button app-button-primary"
+              >
+                <Plus size={16} /> Record Payment
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -225,12 +258,11 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
                     return (
                       <tr key={p.id} className="hover:bg-muted/20 text-xs">
                         <td className="p-3 font-medium">{proj?.projectName || 'Project Payment'}</td>
-                        <td className="p-3 font-mono font-medium">{formatCurrency(amt, p.currency || 'USD')}</td>
+                        <td className="p-3 font-mono font-medium">{formatCurrency(amt, p.currency || getGlobalCurrency())}</td>
                         <td className="p-3 text-muted-foreground">{p.paid_at || p.paidAt || 'N/A'}</td>
                         <td className="p-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            p.status === 'received' ? 'bg-green-500/10 text-green-600' : 'bg-yellow-500/10 text-yellow-600'
-                          }`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${p.status === 'received' ? 'bg-green-500/10 text-green-600' : 'bg-yellow-500/10 text-yellow-600'
+                            }`}>
                             {p.status === 'received' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
                             {p.status}
                           </span>
@@ -254,7 +286,7 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
             <table className="w-full text-sm text-left min-w-[500px]">
               <thead className="border-b border-border bg-muted/10 text-muted-foreground text-xs uppercase font-medium">
                 <tr>
-                  <th className="p-3">Category</th>
+                  <th className="p-3">Title</th>
                   <th className="p-3">Project</th>
                   <th className="p-3">Amount</th>
                   <th className="p-3">Date</th>
@@ -273,9 +305,9 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
                     const amt = (e.amount_minor || e.amountMinor || 0) / 100;
                     return (
                       <tr key={e.id} className="hover:bg-muted/20 text-xs">
-                        <td className="p-3 font-medium">{e.category}</td>
+                        <td className="p-3 font-medium">{e.title || e.category}</td>
                         <td className="p-3 text-muted-foreground">{proj?.projectName || 'General Expense'}</td>
-                        <td className="p-3 font-mono font-medium text-red-500">{formatCurrency(amt, e.currency || 'USD')}</td>
+                        <td className="p-3 font-mono font-medium text-red-500">{formatCurrency(amt, e.currency || getGlobalCurrency())}</td>
                         <td className="p-3 text-muted-foreground">{e.spent_at || e.spentAt || 'N/A'}</td>
                       </tr>
                     );
@@ -288,211 +320,221 @@ export default function FinancialsView({ projects, onRefresh, authUser }) {
       </div>
 
       {/* Record Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
-            <h3 className="text-lg font-bold">Record Project Payment</h3>
-            <form onSubmit={handleRecordPayment} className="space-y-3">
-              <div className="space-y-1 text-xs font-medium">
-                <label>Select Project</label>
-                <select
-                  required
-                  className="w-full rounded-md border border-input bg-background p-2 text-xs focus:ring-2 focus:ring-ring"
-                  value={paymentForm.projectId}
-                  onChange={e => {
-                    const selectedPr = projects.find(p => p.id === e.target.value);
-                    setPaymentForm({
-                      ...paymentForm,
-                      projectId: e.target.value,
-                      currency: selectedPr?.currency || paymentForm.currency
-                    });
-                  }}
-                >
-                  <option value="">-- Choose Project --</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.projectName} ({formatCurrency(p.amount, p.currency)})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
+      {
+        showPaymentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
+              <h3 className="text-lg font-bold">Record Project Payment</h3>
+              <form onSubmit={handleRecordPayment} className="space-y-3">
                 <div className="space-y-1 text-xs font-medium">
-                  <label>Currency</label>
+                  <label>Select Project</label>
                   <select
-                    className="w-full rounded-md border border-input bg-background p-2 text-xs"
-                    value={paymentForm.currency}
-                    onChange={e => setPaymentForm({ ...paymentForm, currency: e.target.value })}
+                    required
+                    className="w-full rounded-md border border-input bg-background p-2 text-xs focus:ring-2 focus:ring-ring"
+                    value={paymentForm.projectId}
+                    onChange={e => {
+                      const selectedPr = projects.find(p => p.id === e.target.value);
+                      setPaymentForm({
+                        ...paymentForm,
+                        projectId: e.target.value,
+                        currency: selectedPr?.currency || paymentForm.currency
+                      });
+                    }}
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="INR">INR (₹)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
+                    <option value="">-- Choose Project --</option>
+                    {pendingProjects.length === 0 ? (
+                      <option disabled value="">All projects fully paid ✓</option>
+                    ) : (
+                      pendingProjects.map(p => {
+                        const agreed = parseFloat(p.amount) || 0;
+                        const paid = projectPaidMap[p.id] || 0;
+                        const remaining = agreed - paid;
+                        const isPartial = paid > 0;
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.projectName}
+                            {isPartial
+                              ? ` — Paid: ${formatCurrency(paid, p.currency)} / Remaining: ${formatCurrency(remaining, p.currency)}`
+                              : ` (Total: ${formatCurrency(agreed, p.currency)})`
+                            }
+                          </option>
+                        );
+                      })
+                    )}
                   </select>
+                  {pendingProjects.length === 0 && (
+                    <p className="text-xs text-green-600 font-medium mt-1">🎉 All projects have been fully paid!</p>
+                  )}
                 </div>
-                <div className="col-span-2 space-y-1 text-xs font-medium">
-                  <label>Amount</label>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 text-xs font-medium">
+                    <label>Currency</label>
+                    <select
+                      className="w-full rounded-md border border-input bg-background p-2 text-xs"
+                      value={paymentForm.currency}
+                      onChange={e => setPaymentForm({ ...paymentForm, currency: e.target.value })}
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="INR">INR (₹)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2 space-y-1 text-xs font-medium">
+                    <label>Amount</label>
+                    <input
+                      required type="number" step="0.01" placeholder="0.00"
+                      className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
+                      value={paymentForm.amount}
+                      onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1 text-xs font-medium">
+                    <label>Date</label>
+                    <input
+                      type="date" required
+                      className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
+                      value={paymentForm.date}
+                      onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 text-xs font-medium">
+                    <label>Status</label>
+                    <select
+                      className="w-full rounded-md border border-input bg-background p-2 text-xs"
+                      value={paymentForm.status}
+                      onChange={e => setPaymentForm({ ...paymentForm, status: e.target.value })}
+                    >
+                      <option value="received">Received</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-xs font-medium">
+                  <label>Notes (optional)</label>
                   <input
-                    required type="number" step="0.01" placeholder="0.00"
+                    type="text" placeholder="e.g. Milestone 1 payment via PayPal"
                     className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                    value={paymentForm.amount}
-                    onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                    value={paymentForm.notes}
+                    onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })}
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button" onClick={() => setShowPaymentModal(false)}
+                    className="app-button app-button-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="app-button app-button-primary"
+                  >
+                    Save Payment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Log Expense Modal */}
+      {
+        showExpenseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
+              <h3 className="text-lg font-bold">Log Agency Expense</h3>
+              <form onSubmit={handleLogExpense} className="space-y-3">
+                <div className="space-y-1 text-xs font-medium">
+                  <label>Title <span className="text-destructive">*</span></label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. Hosting & Server / Domain Renewal"
+                    className="w-full rounded-md border border-input bg-transparent p-2 text-xs focus:ring-2 focus:ring-ring"
+                    value={expenseForm.title}
+                    onChange={e => setExpenseForm({ ...expenseForm, title: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1 text-xs font-medium">
+                  <label>Associated Project (optional)</label>
+                  <select
+                    className="w-full rounded-md border border-input bg-background p-2 text-xs"
+                    value={expenseForm.projectId}
+                    onChange={e => setExpenseForm({ ...expenseForm, projectId: e.target.value })}
+                  >
+                    <option value="">-- General Agency Expense --</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.projectName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 text-xs font-medium">
+                    <label>Currency</label>
+                    <div className="flex h-10 w-full items-center justify-center rounded-md border border-input bg-muted/40 p-2 text-xs font-mono text-foreground">
+                      {expenseForm.currency || getGlobalCurrency()}
+                    </div>
+                  </div>
+                  <div className="col-span-2 space-y-1 text-xs font-medium">
+                    <label>Amount</label>
+                    <input
+                      required type="number" step="0.01" placeholder="0.00"
+                      className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
+                      value={expenseForm.amount}
+                      onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1 text-xs font-medium">
                   <label>Date</label>
                   <input
                     type="date" required
                     className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                    value={paymentForm.date}
-                    onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                    value={expenseForm.date}
+                    onChange={e => setExpenseForm({ ...expenseForm, date: e.target.value })}
                   />
                 </div>
+
                 <div className="space-y-1 text-xs font-medium">
-                  <label>Status</label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background p-2 text-xs"
-                    value={paymentForm.status}
-                    onChange={e => setPaymentForm({ ...paymentForm, status: e.target.value })}
-                  >
-                    <option value="received">Received</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1 text-xs font-medium">
-                <label>Notes (optional)</label>
-                <input
-                  type="text" placeholder="e.g. Milestone 1 payment via PayPal"
-                  className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                  value={paymentForm.notes}
-                  onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button" onClick={() => setShowPaymentModal(false)}
-                  className="px-3 py-1.5 rounded-md border border-input text-xs font-medium hover:bg-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium"
-                >
-                  Save Payment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Log Expense Modal */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
-            <h3 className="text-lg font-bold">Log Agency Expense</h3>
-            <form onSubmit={handleLogExpense} className="space-y-3">
-              <div className="space-y-1 text-xs font-medium">
-                <label>Category</label>
-                <select
-                  required
-                  className="w-full rounded-md border border-input bg-background p-2 text-xs"
-                  value={expenseForm.category}
-                  onChange={e => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                >
-                  <option value="Hosting & Server">Hosting & Server</option>
-                  <option value="Software & Licenses">Software & Licenses</option>
-                  <option value="Freelancer / Subcontractor">Freelancer / Subcontractor</option>
-                  <option value="Domain Registration">Domain Registration</option>
-                  <option value="Marketing & Ads">Marketing & Ads</option>
-                  <option value="Office & Supplies">Office & Supplies</option>
-                  <option value="Other Expense">Other Expense</option>
-                </select>
-              </div>
-
-              <div className="space-y-1 text-xs font-medium">
-                <label>Associated Project (optional)</label>
-                <select
-                  className="w-full rounded-md border border-input bg-background p-2 text-xs"
-                  value={expenseForm.projectId}
-                  onChange={e => setExpenseForm({ ...expenseForm, projectId: e.target.value })}
-                >
-                  <option value="">-- General Agency Expense --</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.projectName}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1 text-xs font-medium">
-                  <label>Currency</label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background p-2 text-xs"
-                    value={expenseForm.currency}
-                    onChange={e => setExpenseForm({ ...expenseForm, currency: e.target.value })}
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="INR">INR (₹)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                  </select>
-                </div>
-                <div className="col-span-2 space-y-1 text-xs font-medium">
-                  <label>Amount</label>
+                  <label>Notes (optional)</label>
                   <input
-                    required type="number" step="0.01" placeholder="0.00"
+                    type="text" placeholder="e.g. AWS monthly server billing"
                     className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                    value={expenseForm.amount}
-                    onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                    value={expenseForm.notes}
+                    onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-1 text-xs font-medium">
-                <label>Date</label>
-                <input
-                  type="date" required
-                  className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                  value={expenseForm.date}
-                  onChange={e => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1 text-xs font-medium">
-                <label>Notes (optional)</label>
-                <input
-                  type="text" placeholder="e.g. AWS monthly server billing"
-                  className="w-full rounded-md border border-input bg-transparent p-2 text-xs"
-                  value={expenseForm.notes}
-                  onChange={e => setExpenseForm({ ...expenseForm, notes: e.target.value })}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button" onClick={() => setShowExpenseModal(false)}
-                  className="px-3 py-1.5 rounded-md border border-input text-xs font-medium hover:bg-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-md bg-white text-black hover:bg-white/90 text-xs font-medium"
-                >
-                  Save Expense
-                </button>
-              </div>
-            </form>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button" onClick={() => setShowExpenseModal(false)}
+                    className="app-button app-button-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="app-button app-button-primary"
+                  >
+                    Save Expense
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

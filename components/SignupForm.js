@@ -126,7 +126,7 @@ export default function SignupForm({ onSignupComplete }) {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full h-10 rounded-md bg-white text-black hover:bg-white/90 disabled:opacity-50 text-sm font-medium transition-colors"
+                        className="app-button app-button-primary w-full"
                     >
                         {isLoading ? 'Setting up...' : 'Create Admin Account'}
                     </button>

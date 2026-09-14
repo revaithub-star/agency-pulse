@@ -1,11 +1,11 @@
 import { DollarSign, Activity, CreditCard, ArrowUpRight } from 'lucide-react';
 import { startOfMonth, subMonths, isSameMonth, subWeeks, isAfter } from 'date-fns';
 import { parseProjectDate } from '@/lib/projectDate';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, getGlobalCurrency } from '@/lib/currency';
 
 export default function StatsCards({ projects }) {
     const now = new Date();
-    const primaryCurrency = projects.find(p => p.currency)?.currency || 'USD';
+    const primaryCurrency = getGlobalCurrency();
 
     // Helper: Filter projects by month based on date property
     const getProjectsInMonth = (date) => projects.filter(p => {
