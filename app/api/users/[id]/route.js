@@ -48,7 +48,8 @@ export async function PUT(request, { params }) {
     }
 
     const role = ['admin', 'staff'].includes(body.role) ? body.role : existing.role;
-    const permissions = Array.isArray(body.permissions) ? body.permissions : JSON.parse(existing.permissions_json || '[]');
+    const rawPermissions = Array.isArray(body.permissions) ? body.permissions : JSON.parse(existing.permissions_json || '[]');
+    const permissions = role === 'admin' ? rawPermissions : rawPermissions.filter(p => p !== 'users.manage');
     const isActive = typeof body.isActive === 'boolean' ? (body.isActive ? 1 : 0) : existing.is_active;
 
     const now = new Date().toISOString();

@@ -2,18 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { UserPlus, Shield, Check, X, Lock, Mail, UserCheck, UserX, Edit2, Trash2, AlertTriangle, Users, User } from 'lucide-react';
-import { can } from '@/lib/permissions';
+import { can, PERMISSIONS } from '@/lib/permissions';
 
-const availablePermissions = [
-  { id: 'projects.read', label: 'View Projects' },
-  { id: 'projects.write', label: 'Create/Edit Projects' },
-  { id: 'clients.read', label: 'View Clients' },
-  { id: 'clients.write', label: 'Create/Edit Clients' },
-  { id: 'financials.read', label: 'View Financials' },
-  { id: 'financials.write', label: 'Manage Payments/Expenses' },
-  { id: 'reports.read', label: 'View & Export Reports' },
-  // { id: 'users.manage', label: 'Manage Users' },
-];
+const availablePermissions = PERMISSIONS.filter(p => p.id !== 'users.manage');
+
+const normalizePermissions = (rawPermissions) => {
+  if (!rawPermissions) return [];
+  if (Array.isArray(rawPermissions)) return rawPermissions;
+  if (typeof rawPermissions === 'string') {
+    try {
+      const parsed = JSON.parse(rawPermissions);
+      if (Array.isArray(parsed)) return parsed;
+      return [rawPermissions];
+    } catch {
+      return [rawPermissions];
+    }
+  }
+  return [];
+};
 
 const defaultAddForm = {
   name: '',
@@ -78,14 +84,16 @@ export default function UserManagement({ authUser }) {
       const res = await fetch(`/api/users/${user.id}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load user');
-      const perms = Array.isArray(data.permissions) ? data.permissions : [];
+      const perms = normalizePermissions(data.permissions);
+      const isUserAdmin = data.role === 'admin';
+      const hasAll = isUserAdmin || perms.includes('*') || perms.length >= availablePermissions.length;
       setEditingUser(data);
       setForm({
         name: data.name || '',
         email: data.email || '',
         password: '',
         role: data.role || 'staff',
-        permissions: perms.includes('*') ? [...availablePermissions.map(p => p.id)] : [...perms],
+        permissions: hasAll ? availablePermissions.map(p => p.id) : perms,
         isActive: data.isActive !== false,
       });
       setShowModal(true);
@@ -153,15 +161,27 @@ export default function UserManagement({ authUser }) {
   const isAddMode = !editingUser;
   const allPermsSelected = form.permissions.length === availablePermissions.length;
 
-  const getPermissionBadges = (permissions) => {
-    if (!Array.isArray(permissions)) return [];
+  const getPermissionBadges = (user) => {
+    if (!user) return { isAll: false, badges: [] };
 
-    const hasAllPermissions = permissions.includes('*') || permissions.length === availablePermissions.length;
-    const visiblePermissions = hasAllPermissions ? availablePermissions.map((perm) => perm.id) : permissions;
+    const perms = normalizePermissions(user.permissions);
+    const isUserAdmin = user.role === 'admin';
+    const hasWildcard = perms.includes('*');
+    const hasAll = isUserAdmin || hasWildcard || (perms.length > 0 && perms.length >= availablePermissions.length);
 
-    return visiblePermissions
-      .map((permissionId) => availablePermissions.find((perm) => perm.id === permissionId))
-      .filter(Boolean);
+    if (hasAll) {
+      return { isAll: true, badges: [] };
+    }
+
+    const badges = perms.map((permId) => {
+      const found = availablePermissions.find((p) => p.id === permId);
+      return {
+        id: permId,
+        label: found ? found.label : permId,
+      };
+    });
+
+    return { isAll: false, badges };
   };
 
   return (
@@ -238,16 +258,9 @@ export default function UserManagement({ authUser }) {
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1 max-w-xs">
                           {(() => {
-                            const permissionBadges = getPermissionBadges(user.permissions);
-                            if (permissionBadges.length === 0) {
-                              return <span className="text-[11px] text-muted-foreground/70 italic">No permissions</span>;
-                            }
+                            const { isAll, badges } = getPermissionBadges(user);
 
-                            const hasAllPermissions = Array.isArray(user.permissions) && (
-                              user.permissions.includes('*') || user.permissions.length === availablePermissions.length
-                            );
-
-                            if (hasAllPermissions) {
+                            if (isAll) {
                               return (
                                 <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 border border-purple-500/20 text-[10px] font-medium">
                                   All permissions
@@ -255,9 +268,13 @@ export default function UserManagement({ authUser }) {
                               );
                             }
 
+                            if (badges.length === 0) {
+                              return <span className="text-[11px] text-muted-foreground/70 italic">No permissions</span>;
+                            }
+
                             return (
                               <>
-                                {permissionBadges.slice(0, 3).map((perm) => (
+                                {badges.slice(0, 3).map((perm) => (
                                   <span
                                     key={perm.id}
                                     className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-medium text-muted-foreground border border-border"
@@ -265,9 +282,9 @@ export default function UserManagement({ authUser }) {
                                     {perm.label}
                                   </span>
                                 ))}
-                                {permissionBadges.length > 3 && (
+                                {badges.length > 3 && (
                                   <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-medium text-muted-foreground border border-border">
-                                    +{permissionBadges.length - 3} more
+                                    +{badges.length - 3} more
                                   </span>
                                 )}
                               </>

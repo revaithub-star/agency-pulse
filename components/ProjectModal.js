@@ -2,8 +2,37 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Plus, Trash2, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 import { getGlobalCurrency } from '@/lib/currency';
+
+function PasswordInput({ value, onChange, placeholder, className = '', iconSize = 14 }) {
+    const [showPassword, setShowPassword] = useState(false);
+    const paddingRightClass = iconSize >= 16 ? 'pr-9' : 'pr-8';
+
+    return (
+        <div className="relative w-full">
+            <input
+                type={showPassword ? 'text' : 'password'}
+                className={`${className} ${paddingRightClass}`}
+                placeholder={placeholder}
+                value={value}
+                onChange={onChange}
+            />
+            <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute top-1/2 inset-2 z-10 flex -translate-y-1/2 items-center justify-center p-1 text-muted-foreground hover:text-foreground"
+                style={{
+                    right: "10px",
+                }}
+                tabIndex={-1}
+                title={showPassword ? "Hide password" : "Show password"}
+            >
+                {showPassword ? <EyeOff size={iconSize} /> : <Eye size={iconSize} />}
+            </button>
+        </div>
+    );
+}
 
 function getDefaultFormData() {
     return {
@@ -30,6 +59,7 @@ function getDefaultFormData() {
         hostingDetails: {
             server: { serverName: '', ip: '', username: '', password: '', notes: '' },
             hosting: { provider: '', plan: '', domain: '', username: '', password: '', notes: '' },
+            domain: { registrar: '', domainName: '', expiryDate: '', username: '', password: '', nameservers: '', notes: '' },
         },
     };
 }
@@ -41,7 +71,8 @@ function getInitialFormData(editingProject) {
     const hasCreds = Array.isArray(editingProject.credentials) && editingProject.credentials.some(c => c.serviceName || c.username || c.email || c.password || c.url);
     const hasHosting = editingProject.hostingDetails && (
         Object.values(editingProject.hostingDetails.server || {}).some(v => v) ||
-        Object.values(editingProject.hostingDetails.hosting || {}).some(v => v)
+        Object.values(editingProject.hostingDetails.hosting || {}).some(v => v) ||
+        Object.values(editingProject.hostingDetails.domain || {}).some(v => v)
     );
 
     const migrated = {
@@ -56,6 +87,7 @@ function getInitialFormData(editingProject) {
         hostingDetails: {
             server: { ...defaultFormData.hostingDetails.server, ...(editingProject.hostingDetails?.server || {}) },
             hosting: { ...defaultFormData.hostingDetails.hosting, ...(editingProject.hostingDetails?.hosting || {}) },
+            domain: { ...defaultFormData.hostingDetails.domain, ...(editingProject.hostingDetails?.domain || {}) },
         },
     };
 
@@ -81,7 +113,7 @@ function getInitialFormData(editingProject) {
 function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, categories, clients }) {
     const [formData, setFormData] = useState(() => getInitialFormData(editingProject));
     const [errors, setErrors] = useState({});
-    const [hostingSectionOpen, setHostingSectionOpen] = useState({ server: true, hosting: true });
+    const [hostingSectionOpen, setHostingSectionOpen] = useState({ server: true, hosting: true, domain: true });
 
     useEffect(() => {
         const syncCurrency = () => {
@@ -123,6 +155,13 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
         setFormData({
             ...formData,
             hostingDetails: { ...formData.hostingDetails, hosting: { ...formData.hostingDetails.hosting, [field]: value } }
+        });
+    };
+
+    const updateDomainDetail = (field, value) => {
+        setFormData({
+            ...formData,
+            hostingDetails: { ...formData.hostingDetails, domain: { ...formData.hostingDetails.domain, [field]: value } }
         });
     };
 
@@ -188,6 +227,7 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
             submitData.hostingDetails = {
                 server: { serverName: '', ip: '', username: '', password: '', notes: '' },
                 hosting: { provider: '', plan: '', domain: '', username: '', password: '', notes: '' },
+                domain: { registrar: '', domainName: '', expiryDate: '', username: '', password: '', nameservers: '', notes: '' },
             };
         }
         onSubmit(submitData);
@@ -479,12 +519,12 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
                                                     </div>
                                                     <div className="space-y-1 sm:col-span-2">
                                                         <label className="text-xs font-medium text-muted-foreground uppercase">Password / Key</label>
-                                                        <input
-                                                            type="text"
+                                                        <PasswordInput
                                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
                                                             placeholder="Stored securely"
                                                             value={cred.password}
                                                             onChange={e => updateCredential(index, 'password', e.target.value)}
+                                                            iconSize={16}
                                                         />
                                                     </div>
                                                     <div className="space-y-1 sm:col-span-2">
@@ -557,11 +597,11 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
                                                     </div>
                                                     <div className="space-y-1">
                                                         <label className="text-[10px] font-medium text-muted-foreground uppercase">Password</label>
-                                                        <input
-                                                            type="text"
+                                                        <PasswordInput
                                                             className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                                             value={formData.hostingDetails.server.password}
                                                             onChange={e => updateServerDetail('password', e.target.value)}
+                                                            iconSize={14}
                                                         />
                                                     </div>
                                                     <div className="space-y-1 sm:col-span-2">
@@ -626,11 +666,11 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
                                                     </div>
                                                     <div className="space-y-1 sm:col-span-2">
                                                         <label className="text-[10px] font-medium text-muted-foreground uppercase">Password</label>
-                                                        <input
-                                                            type="text"
+                                                        <PasswordInput
                                                             className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                                             value={formData.hostingDetails.hosting.password}
                                                             onChange={e => updateHostingAccount('password', e.target.value)}
+                                                            iconSize={14}
                                                         />
                                                     </div>
                                                     <div className="space-y-1 sm:col-span-2">
@@ -640,6 +680,85 @@ function ProjectModalContent({ isOpen, onClose, onSubmit, editingProject, catego
                                                             placeholder="Renewal date, billing cycle, nameservers..."
                                                             value={formData.hostingDetails.hosting.notes}
                                                             onChange={e => updateHostingAccount('notes', e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Domain Details Section */}
+                                        <div className="rounded-md border border-border/60 overflow-hidden">
+                                            <button
+                                                type="button"
+                                                onClick={() => setHostingSectionOpen(s => ({ ...s, domain: !s.domain }))}
+                                                className="w-full flex items-center justify-between px-3 py-2 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                                            >
+                                                <span className="text-xs font-bold uppercase tracking-wide">Domain Details</span>
+                                                {hostingSectionOpen.domain ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                            </button>
+                                            {hostingSectionOpen.domain && (
+                                                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Domain Registrar / Provider</label>
+                                                        <input
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            placeholder="e.g. Namecheap, GoDaddy, Cloudflare"
+                                                            value={formData.hostingDetails.domain?.registrar || ''}
+                                                            onChange={e => updateDomainDetail('registrar', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Domain Name</label>
+                                                        <input
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            placeholder="e.g. example.com"
+                                                            value={formData.hostingDetails.domain?.domainName || ''}
+                                                            onChange={e => updateDomainDetail('domainName', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Expiry / Renewal Date</label>
+                                                        <input
+                                                            type="date"
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            value={formData.hostingDetails.domain?.expiryDate || ''}
+                                                            onChange={e => updateDomainDetail('expiryDate', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Username / Email</label>
+                                                        <input
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            placeholder="e.g. admin@example.com"
+                                                            value={formData.hostingDetails.domain?.username || ''}
+                                                            onChange={e => updateDomainDetail('username', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Password / Auth Key</label>
+                                                        <PasswordInput
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            value={formData.hostingDetails.domain?.password || ''}
+                                                            onChange={e => updateDomainDetail('password', e.target.value)}
+                                                            iconSize={14}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Nameservers / DNS</label>
+                                                        <input
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            placeholder="ns1.provider.com, ns2.provider.com"
+                                                            value={formData.hostingDetails.domain?.nameservers || ''}
+                                                            onChange={e => updateDomainDetail('nameservers', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1 sm:col-span-2">
+                                                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Domain Notes</label>
+                                                        <input
+                                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                            placeholder="Auto-renewal status, transfer auth code, special notes..."
+                                                            value={formData.hostingDetails.domain?.notes || ''}
+                                                            onChange={e => updateDomainDetail('notes', e.target.value)}
                                                         />
                                                     </div>
                                                 </div>

@@ -51,9 +51,11 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
   // Hosting details
   const hostingServer = project.hostingDetails?.server || {};
   const hostingAccount = project.hostingDetails?.hosting || {};
+  const domainDetails = project.hostingDetails?.domain || {};
   const hasServerDetails = hostingServer.serverName || hostingServer.ip || hostingServer.username;
   const hasHostingDetails = hostingAccount.provider || hostingAccount.domain || hostingAccount.username;
-  const hasAnyHosting = hasServerDetails || hasHostingDetails;
+  const hasDomainDetails = domainDetails.registrar || domainDetails.domainName || domainDetails.username || domainDetails.expiryDate;
+  const hasAnyHosting = hasServerDetails || hasHostingDetails || hasDomainDetails;
 
   return (
     <AnimatePresence>
@@ -349,6 +351,75 @@ export default function ProjectDetailsModal({ project, isOpen, onClose, onEdit }
                         <div className="pt-2 border-t border-border/50 text-xs">
                           <span className="text-muted-foreground">Notes:</span>
                           <p className="mt-0.5 whitespace-pre-wrap">{hostingAccount.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {hasDomainDetails && (
+                    <div className="p-3 bg-muted/40 rounded-lg space-y-2">
+                      <div className="text-xs font-semibold text-foreground flex items-center justify-between">
+                        <span>Domain Details</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {domainDetails.registrar && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Registrar:</span>
+                            <p className="font-medium mt-0.5">{domainDetails.registrar}</p>
+                          </div>
+                        )}
+                        {domainDetails.domainName && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Domain Name:</span>
+                            <p className="font-medium mt-0.5 font-mono">{domainDetails.domainName}</p>
+                          </div>
+                        )}
+                        {domainDetails.expiryDate && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Expiry Date:</span>
+                            <p className="font-medium mt-0.5">{domainDetails.expiryDate}</p>
+                          </div>
+                        )}
+                        {domainDetails.username && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Username/Email:</span>
+                            <div className="flex items-center gap-1 font-mono mt-0.5">
+                              <span className="truncate">{domainDetails.username}</span>
+                              <button onClick={() => copyToClipboard(domainDetails.username, 'domain-user')} className="text-muted-foreground hover:text-foreground">
+                                {copiedField === 'domain-user' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {domainDetails.password && (
+                          <div>
+                            <span className="text-xs text-muted-foreground font-mono">Password:</span>
+                            <div className="flex items-center gap-1 font-mono text-xs mt-0.5">
+                              <span className="select-none">
+                                {revealedPasswords['domain-pass'] ? domainDetails.password : '••••••••'}
+                              </span>
+                              <button onClick={() => togglePasswordReveal('domain-pass')} className="text-muted-foreground hover:text-foreground p-0.5" title={revealedPasswords['domain-pass'] ? 'Hide' : 'Show'}>
+                                {revealedPasswords['domain-pass'] ? <EyeOff size={12} /> : <Eye size={12} />}
+                              </button>
+                              {revealedPasswords['domain-pass'] && (
+                                <button onClick={() => copyToClipboard(domainDetails.password, 'domain-pass-copy')} className="text-muted-foreground hover:text-foreground">
+                                  {copiedField === 'domain-pass-copy' ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {domainDetails.nameservers && (
+                          <div className="col-span-2">
+                            <span className="text-xs text-muted-foreground">Nameservers:</span>
+                            <p className="font-medium font-mono text-[11px] mt-0.5">{domainDetails.nameservers}</p>
+                          </div>
+                        )}
+                      </div>
+                      {domainDetails.notes && (
+                        <div className="pt-2 border-t border-border/50 text-xs">
+                          <span className="text-muted-foreground">Notes:</span>
+                          <p className="mt-0.5 whitespace-pre-wrap">{domainDetails.notes}</p>
                         </div>
                       )}
                     </div>

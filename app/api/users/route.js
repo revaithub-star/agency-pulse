@@ -19,7 +19,8 @@ export async function POST(request) {
     const password = String(body.password || '');
     if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8) return NextResponse.json({ error: 'Use a valid email and a password of at least 8 characters' }, { status: 400 });
     try {
-        const user = createUser({ name, email, password, role: 'staff', permissions: Array.isArray(body.permissions) ? body.permissions : [] });
+        const permissions = (Array.isArray(body.permissions) ? body.permissions : []).filter(p => p !== 'users.manage');
+        const user = createUser({ name, email, password, role: 'staff', permissions });
         return NextResponse.json({ id: user.id, name: user.name, email: user.email, role: user.role, permissions: user.permissions }, { status: 201 });
     } catch (error) {
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return NextResponse.json({ error: 'A user with that email already exists' }, { status: 409 });

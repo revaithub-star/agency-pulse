@@ -27,6 +27,9 @@ function preserveRedactedSecrets(existingProject, updates) {
         if (nextHosting.hosting?.password === redactedValue) {
             nextHosting.hosting.password = existingHosting.hosting?.password || '';
         }
+        if (nextHosting.domain?.password === redactedValue) {
+            nextHosting.domain.password = existingHosting.domain?.password || '';
+        }
         merged.hostingDetails = nextHosting;
     }
 
